@@ -295,7 +295,7 @@ async function systemView() {
     <div class="grid cols-2">
       <div class="card"><h2>აგენტების გაშვებები</h2><div class="table-wrap"><table>
         <thead><tr><th>#</th><th>აგენტი</th><th>სტატუსი</th><th>დრო</th><th class="num">ხანგრძლ.</th><th class="num">ჩანაწ.</th><th>შეტყობინება</th></tr></thead>
-        <tbody>${d.runs.map((r) => `<tr><td class="muted">${r.id}</td><td>${esc(AGENT_KA[r.agent] || r.agent)}</td><td>${pill(r.status, RUN[r.status] || "mute")}</td><td>${fmtDate(r.started_at)}</td><td class="num">${dur(r)}</td><td class="num">${r.rows_written ?? ""}</td><td class="muted">${esc(r.message || "")}</td></tr>`).join("")}</tbody></table></div></div>
+        <tbody>${d.runs.map((r) => `<tr><td class="muted">${r.id}</td><td>${esc(AGENT_KA[r.agent] || r.agent)}</td><td>${pill(r.status, RUN[r.status] || "mute")}${r.status === "failed" && d.runs.some((x) => x.agent === r.agent && x.id > r.id && x.status === "ok") ? " " + pill("✓ გამოსწორდა", "good") : ""}</td><td>${fmtDate(r.started_at)}</td><td class="num">${dur(r)}</td><td class="num">${r.rows_written ?? ""}</td><td class="muted">${esc(r.message || "")}</td></tr>`).join("")}</tbody></table></div></div>
       <div class="grid" style="align-content:start">
         <div class="card"><h2>მონაცემთა პრობლემები</h2>${d.issues.length ? `<table><tbody>${d.issues.map((i) => `<tr><td>${pill(i.resolved ? "გადაწყდა" : "ღია", i.resolved ? "good" : "bad")}</td><td>${esc(i.check_name)}</td><td class="muted">${esc(i.message)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">✓ პრობლემა არ არის</div>`}</div>
         <div class="card"><h2>პარამეტრები</h2>
