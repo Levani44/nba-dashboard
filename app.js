@@ -113,7 +113,7 @@ async function openGame(id) {
 }
 
 /* ---------------- Players ---------------- */
-const pstate = { q: "", team: "", sort: "points", dir: -1, minGp: 3, watch: false };
+const pstate = { q: "", team: "", sort: "minutes", dir: -1, minGp: 3, watch: false };
 let pcache = null;
 async function playersView() {
   const d = pcache || (pcache = await api("/api/players"));
@@ -214,12 +214,12 @@ async function predictionsView(params) {
     const act = st.actual !== null && st.actual !== undefined;
     return `<td class="num" title="დიაპაზონი ${num(st.low)}–${num(st.high)} · საშუალო ${num(st.naive)}"><b>${num(st.predicted)}</b>
       ${act ? `<br><span class="pill ${st.in_range ? "good" : "bad"}">${num(st.actual, 0)}</span>` : `<br><small class="muted">${num(st.low, 0)}–${num(st.high, 0)}</small>`}</td>`; };
-  const game = (G) => { const g = G.game, final = g.is_final;
+  const game = (G, idx) => { const g = G.game, final = g.is_final;
     const team = (tid) => G.players.filter((p) => p.team_id === tid);
     const tbl = (t, rows) => `<h2 class="mt">${teamTag(t)}</h2><div class="table-wrap"><table>
       <thead><tr><th>მოთამაშე</th>${keys.map(([, l]) => `<th class="num">${l}</th>`).join("")}</tr></thead>
       <tbody>${rows.map((p) => `<tr class="click" data-player="${esc(p.id)}"><td><b>${esc(p.name)}</b>${p.injury ? " " + pill("🩹 " + p.injury, "warn") : ""}</td>${keys.map(([k]) => cell(p.stats[k])).join("")}</tr>`).join("")}</tbody></table></div>`;
-    return `<details class="card mt" ${final ? "" : "open"}><summary style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">
+    return `<details class="card mt" ${final && idx > 1 ? "" : "open"}><summary style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">
         <span class="team">${teamTag(G.away)} <span class="muted">@</span> ${teamTag(G.home)}</span>
         <span>${final ? pill(`${g.away_score}–${g.home_score} დასრულდა`, "mute") : pill(new Date(g.game_date).toLocaleTimeString("ka-GE", { hour: "2-digit", minute: "2-digit" }), "info")}</span></summary>
       ${tbl(G.away, team(g.away_team_id))}${tbl(G.home, team(g.home_team_id))}</details>`; };
@@ -228,10 +228,11 @@ async function predictionsView(params) {
       <div class="datebar"><button class="btn icon" ${prev ? `data-go="${prev}"` : "disabled"}>←</button>
         <select id="pdate">${d.dates.map((x) => `<option ${x === d.date ? "selected" : ""}>${x}</option>`).join("")}</select>
         <button class="btn icon" ${next ? `data-go="${next}"` : "disabled"}>→</button></div></div>
-    <h2>სიზუსტე ${live ? "(რეალური პროგნოზები)" : "(backtest: წარსული მატჩები, მხოლოდ მანამდე არსებული მონაცემით)"}</h2>
+    ${d.date !== d.today ? `<div class="card notice">ℹ️ დღევანდელი (${esc(d.today)}, აშშ დროით) პროგნოზები ჯერ არ არის. ისინი ყოველდღე <b>15:00-ზე</b> (თბილისის დროით) ავტომატური გაშვების შემდეგ ჩნდება. ქვემოთ ბოლო ხელმისაწვდომი დღეა (${esc(d.date)}).</div>` : ""}
+    ${d.games.length ? d.games.map(game).join("") : `<div class="card empty">პროგნოზები ჯერ არ არის. ისინი ყოველდღე 15:00-ზე (თბილისის დროით) ჩნდება.</div>`}
+    <h2 class="mt" style="margin-top:28px">სიზუსტე ${live ? "(რეალური პროგნოზები)" : "(backtest: წარსული მატჩები, მხოლოდ მანამდე არსებული მონაცემით)"}</h2>
     <div class="grid kpis">${keys.map(([k, l]) => accCard(k, l)).join("")}</div>
-    <p class="muted" style="margin-top:-6px">±ცდომილება = საშუალოდ რამდენით სცდება. „საშუალოსთან“ = თუ უბრალოდ სეზონის საშუალოს ვიტყოდით. მწვანე % = მოდელი ჯობია. ცხრილში: მსხვილი = პროგნოზი, ქვემოთ დიაპაზონი ან ფაქტი (მწვანე = დიაპაზონში მოხვდა).</p>
-    ${d.games.length ? d.games.map(game).join("") : `<div class="card empty">ამ დღისთვის პროგნოზი არ არის</div>`}`;
+    <p class="muted" style="margin-top:4px">±ცდომილება = საშუალოდ რამდენით სცდება. „საშუალოსთან“ = თუ უბრალოდ სეზონის საშუალოს ვიტყოდით. მწვანე % = მოდელი ჯობია. ცხრილში: მსხვილი = პროგნოზი, ქვემოთ დიაპაზონი ან ფაქტი (მწვანე = დიაპაზონში მოხვდა).</p>`;
   view.querySelectorAll("[data-go]").forEach((b) => (b.onclick = () => (location.hash = `#/predictions?date=${b.dataset.go}`)));
   $("#pdate").onchange = (e) => (location.hash = `#/predictions?date=${e.target.value}`);
   view.querySelectorAll("tr[data-player]").forEach((tr) => (tr.onclick = () => openPlayer(tr.dataset.player)));

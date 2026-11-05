@@ -179,3 +179,4 @@ details:not([open]) > summary::after { content: "▸"; }
 #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--text); color: var(--panel);
   padding: 9px 16px; border-radius: 999px; transition: .2s; z-index: 60; pointer-events: none; }
 #toast.show { opacity: 1; transform: translateX(-50%); }
+.card.notice { background: var(--info-soft); border-color: transparent; color: var(--text); margin-bottom: 4px; }

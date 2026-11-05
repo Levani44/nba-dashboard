@@ -120,7 +120,7 @@ async function apiGame(id) {
   const side = (k) => {
     const tid = g[`${k}_team_id`];
     return { team: t[tid], score: g[`${k}_score`], rows: rows.filter((r) => r.team_id === tid)
-      .sort((a, b) => (a.did_not_play - b.did_not_play) || (b.starter - a.starter) || ((+b.minutes || 0) - (+a.minutes || 0))) };
+      .sort((a, b) => (a.did_not_play - b.did_not_play) || ((+b.minutes || 0) - (+a.minutes || 0))) };
   };
   return { game: g, home: side("home"), away: side("away") };
 }
@@ -191,7 +191,7 @@ async function apiAlerts(q) {
   const params = { select: "*", order: "created_at.desc" };
   if (q.status && q.status !== "all") params.status = `eq.${q.status}`;
   const rows = await decorateAlerts(await sb("alerts", params));
-  rows.sort((a, b) => (b.watch - a.watch) || ((a.status !== "new") - (b.status !== "new")) || ((b.priority || 0) - (a.priority || 0)));
+  rows.sort((a, b) => (b.watch - a.watch) || ((+b.details?.minutes_baseline || 0) - (+a.details?.minutes_baseline || 0)));
   return { alerts: rows };
 }
 
@@ -222,13 +222,13 @@ async function apiPredictions(q) {
       const plist = Object.entries(by[g.id] || {}).map(([pid, st]) => {
         const f = st.minutes || Object.values(st)[0];
         return { id: pid, name: p[pid]?.full_name, team_id: f.team_id, headshot: p[pid]?.headshot_url, injury: f.features?.injury, stats: st };
-      }).sort((a, b) => (+(b.stats.points?.predicted) || 0) - (+(a.stats.points?.predicted) || 0));
+      }).sort((a, b) => (+(b.stats.minutes?.predicted) || 0) - (+(a.stats.minutes?.predicted) || 0));
       out.push({ game: g, home: t[g.home_team_id], away: t[g.away_team_id], players: plist });
     }
   }
   const ev = await sb("agent_runs", { select: "details", agent: "eq.evaluator", status: "eq.ok", order: "id.desc", limit: 1 }, { all: false });
   const acc = ev[0]?.details || {};
-  return { date: d, dates, games: out, accuracy: { live: acc.accuracy_live || {}, backtest: acc.accuracy_backtest || {} } };
+  return { date: d, dates, today: etDate(new Date().toISOString()), games: out, accuracy: { live: acc.accuracy_live || {}, backtest: acc.accuracy_backtest || {} } };
 }
 
 /* ---------- auth + writes (shared passcode, kept in this browser only) ---------- */
