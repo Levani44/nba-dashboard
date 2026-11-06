@@ -99,10 +99,10 @@ async function openGame(id) {
   modal(`<div class="loading">იტვირთება…</div>`);
   const d = await api(`/api/game/${id}`);
   const side = (s) => `<div class="card mt"><h2>${teamTag(s.team)}</h2><div class="table-wrap"><table>
-    <thead><tr><th>მოთამაშე</th><th class="num">MIN</th><th class="num">PTS</th><th class="num">REB</th><th class="num">AST</th><th class="num">STL</th><th class="num">BLK</th><th class="num">TO</th><th class="num">FG</th><th class="num">3PT</th><th class="num">FT</th><th class="num">+/-</th></tr></thead>
+    <thead><tr><th>მოთამაშე</th><th class="num">PTS</th><th class="num">MIN</th><th class="num">REB</th><th class="num">AST</th><th class="num">STL</th><th class="num">BLK</th><th class="num">TO</th><th class="num">FG</th><th class="num">3PT</th><th class="num">FT</th><th class="num">+/-</th></tr></thead>
     <tbody>${s.rows.map((r) => r.did_not_play
       ? `<tr class="dnp click" data-player="${esc(r.player_id)}"><td>${esc(r.name)}</td><td colspan="11">DNP${r.dnp_reason ? " – " + esc(r.dnp_reason) : ""}</td></tr>`
-      : `<tr class="click" data-player="${esc(r.player_id)}"><td>${r.starter ? "<b>" + esc(r.name) + "</b>" : esc(r.name)}</td><td class="num">${num(r.minutes, 0)}</td><td class="num"><b>${r.points}</b></td><td class="num">${r.rebounds}</td><td class="num">${r.assists}</td><td class="num">${r.steals}</td><td class="num">${r.blocks}</td><td class="num">${r.turnovers}</td><td class="num">${r.fgm}-${r.fga}</td><td class="num">${r.fg3m}-${r.fg3a}</td><td class="num">${r.ftm}-${r.fta}</td><td class="num">${r.plus_minus > 0 ? "+" : ""}${r.plus_minus ?? ""}</td></tr>`).join("")}</tbody></table></div></div>`;
+      : `<tr class="click" data-player="${esc(r.player_id)}"><td>${r.starter ? "<b>" + esc(r.name) + "</b>" : esc(r.name)}</td><td class="num"><b>${r.points}</b></td><td class="num">${num(r.minutes, 0)}</td><td class="num">${r.rebounds}</td><td class="num">${r.assists}</td><td class="num">${r.steals}</td><td class="num">${r.blocks}</td><td class="num">${r.turnovers}</td><td class="num">${r.fgm}-${r.fga}</td><td class="num">${r.fg3m}-${r.fg3a}</td><td class="num">${r.ftm}-${r.fta}</td><td class="num">${r.plus_minus > 0 ? "+" : ""}${r.plus_minus ?? ""}</td></tr>`).join("")}</tbody></table></div></div>`;
   modal(`<div class="box-head">
       <div class="t"><img src="${esc(d.away.team.logo_url)}" alt=""><div>${esc(d.away.team.abbreviation)}</div></div>
       <div class="s">${d.away.score} – ${d.home.score}</div>
@@ -113,7 +113,7 @@ async function openGame(id) {
 }
 
 /* ---------------- Players ---------------- */
-const pstate = { q: "", team: "", sort: "minutes", dir: -1, minGp: 3, watch: false };
+const pstate = { q: "", team: "", sort: "points", dir: -1, minGp: 3, watch: false };
 let pcache = null;
 async function playersView() {
   const d = pcache || (pcache = await api("/api/players"));
@@ -127,7 +127,7 @@ async function playersView() {
         <button class="chip ${pstate.watch ? "on" : ""}" id="pwatch">★ ჩემი სია</button>
       </div></div>
     <div class="card"><div class="table-wrap" id="ptable"></div></div>`;
-  const cols = [["name", "მოთამაშე"], ["team", "გუნდი"], ["gp", "GP", 1], ["minutes", "MIN", 1], ["points", "PTS", 1], ["rebounds", "REB", 1], ["assists", "AST", 1],
+  const cols = [["name", "მოთამაშე"], ["team", "გუნდი"], ["gp", "GP", 1], ["points", "PTS", 1], ["minutes", "MIN", 1], ["rebounds", "REB", 1], ["assists", "AST", 1],
     ["steals", "STL", 1], ["blocks", "BLK", 1], ["fg3m", "3PM", 1], ["fg_pct", "FG%", 1], ["fg3_pct", "3P%", 1], ["ft_pct", "FT%", 1]];
   const render = () => {
     const q = pstate.q.toLowerCase();
@@ -183,16 +183,16 @@ async function openPlayer(id) {
       <div><h1>${esc(p.full_name)} <button class="star ${d.watch ? "on" : ""}" id="pstar" title="ჩემს სიაში">★</button></h1>
       <div class="muted">${teamTag(p.team)} · ${esc(p.position || "")} ${p.jersey ? "· #" + esc(p.jersey) : ""}</div>
       ${inj ? `<div class="mt">${pill("🩹 " + inj.status, "bad")} <span class="muted">${esc(inj.short_comment || "")}</span></div>` : ""}</div></div>
-    <div class="statline">${[["GP", a.gp], ["MIN", num(a.minutes)], ["PTS", num(a.points)], ["REB", num(a.rebounds)], ["AST", num(a.assists)], ["STL", num(a.steals)], ["BLK", num(a.blocks)], ["3PM", num(a.fg3m)], ["FG%", num(a.fg_pct)], ["3P%", num(a.fg3_pct)]]
+    <div class="statline">${[["GP", a.gp], ["PTS", num(a.points)], ["MIN", num(a.minutes)], ["REB", num(a.rebounds)], ["AST", num(a.assists)], ["STL", num(a.steals)], ["BLK", num(a.blocks)], ["3PM", num(a.fg3m)], ["FG%", num(a.fg_pct)], ["3P%", num(a.fg3_pct)]]
       .map(([l, v]) => `<div><b>${v ?? "–"}</b><small>${l}</small></div>`).join("")}</div>
     <div class="toolbar" style="justify-content:space-between"><h2 style="margin:0">ფორმა თამაშების მიხედვით</h2>
       <div class="chips" id="pkeys">${Object.entries(STAT_KA).map(([k, l]) => `<button class="chip ${k === key ? "on" : ""}" data-k="${k}">${l}</button>`).join("")}</div></div>
     <div id="pchart" class="mt"></div><p class="muted" style="margin:4px 0 0">წყვეტილი ხაზი = სეზონის საშუალო</p>
     ${d.alerts.length ? `<h2 class="mt">სიგნალები</h2>${d.alerts.map(alertCard).join("")}` : ""}
     <h2 class="mt">თამაშების ჟურნალი</h2><div class="table-wrap"><table>
-      <thead><tr><th>თარიღი</th><th>მეტოქე</th><th>შედეგი</th><th class="num">MIN</th><th class="num">PTS</th><th class="num">REB</th><th class="num">AST</th><th class="num">BLK</th><th class="num">FG</th><th class="num">3PT</th><th class="num">+/-</th></tr></thead>
+      <thead><tr><th>თარიღი</th><th>მეტოქე</th><th>შედეგი</th><th class="num">PTS</th><th class="num">MIN</th><th class="num">REB</th><th class="num">AST</th><th class="num">BLK</th><th class="num">FG</th><th class="num">3PT</th><th class="num">+/-</th></tr></thead>
       <tbody>${[...d.log].reverse().map((r) => `<tr class="${r.did_not_play ? "dnp" : ""}"><td>${esc(r.date)}</td><td>${r.home ? "" : "@ "}${esc(r.opp)}</td><td>${r.result ? pill(r.result + " " + r.score, r.result === "W" ? "good" : "bad") : ""}</td>
-        ${r.did_not_play ? `<td colspan="8" class="muted">DNP ${esc(r.dnp_reason || "")}</td>` : `<td class="num">${num(r.minutes, 0)}</td><td class="num"><b>${r.points}</b></td><td class="num">${r.rebounds}</td><td class="num">${r.assists}</td><td class="num">${r.blocks}</td><td class="num">${r.fgm}-${r.fga}</td><td class="num">${r.fg3m}-${r.fg3a}</td><td class="num">${r.plus_minus > 0 ? "+" : ""}${r.plus_minus ?? ""}</td>`}</tr>`).join("")}</tbody></table></div>`);
+        ${r.did_not_play ? `<td colspan="8" class="muted">DNP ${esc(r.dnp_reason || "")}</td>` : `<td class="num"><b>${r.points}</b></td><td class="num">${num(r.minutes, 0)}</td><td class="num">${r.rebounds}</td><td class="num">${r.assists}</td><td class="num">${r.blocks}</td><td class="num">${r.fgm}-${r.fga}</td><td class="num">${r.fg3m}-${r.fg3a}</td><td class="num">${r.plus_minus > 0 ? "+" : ""}${r.plus_minus ?? ""}</td>`}</tr>`).join("")}</tbody></table></div>`);
   drawChart();
   $("#pkeys").querySelectorAll("[data-k]").forEach((b) => (b.onclick = () => { key = b.dataset.k; $("#pkeys").querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", c === b)); drawChart(); }));
   $("#pstar").onclick = async (e) => { if (await toggleWatch(p.id, !d.watch)) { d.watch = !d.watch; e.target.classList.toggle("on", d.watch); } };
@@ -205,7 +205,7 @@ async function predictionsView(params) {
   const live = Object.keys(d.accuracy.live).length > 0;
   const acc = live ? d.accuracy.live : d.accuracy.backtest;
   const i = d.dates.indexOf(d.date), prev = d.dates[i - 1], next = d.dates[i + 1];
-  const keys = [["minutes", "MIN"], ["points", "PTS"], ["rebounds", "REB"], ["assists", "AST"], ["fg3m", "3PM"]];
+  const keys = [["points", "PTS"], ["minutes", "MIN"], ["rebounds", "REB"], ["assists", "AST"], ["fg3m", "3PM"]];
   const accCard = (k, l) => { const a = acc[k]; if (!a) return ""; const better = a.improvement_pct > 0;
     return `<div class="card kpi"><div class="label">${STAT_KA[k] || l}</div><div class="value">±${num(a.mae, 2)}</div>
       <div class="hint">საშუალოსთან ±${num(a.naive_mae, 2)} · <span class="pill ${better ? "good" : "bad"}">${a.improvement_pct > 0 ? "+" : ""}${num(a.improvement_pct)}%</span></div>
@@ -248,8 +248,8 @@ function alertCard(a) {
       <div><b class="click" data-player="${esc(a.player_id)}" style="cursor:pointer">${esc(a.name || det.player_name)}</b>${a.watch ? ' <span class="star on">★</span>' : ""}<small>${esc(a.team || "")} · ${esc(STAT_KA[a.stat] || a.stat)}</small></div></div>
       <div style="text-align:right">${v ? pill(v[0], v[1]) : pill(s[0], s[1])}</div></div>
     <div class="change"><span class="pill ${up ? "good" : "bad"}">${up ? "▲ მატება" : "▼ კლება"}</span>
-      <span class="muted">${num(a.season_avg)}</span><span class="arrow">→</span><b>${num(a.recent_avg)}</b>
-      <span class="stat">ბოლო 3: ${(det.last_values || []).map((x) => num(x, 0)).join(" · ")}</span></div>
+      <span class="muted" title="საშუალო ბოლო ${a.window_games || 3} თამაშამდე"><small>ადრე</small> ${num(a.season_avg)}</span><span class="arrow">→</span><b title="ბოლო ${a.window_games || 3} თამაშის საშუალო"><small class="muted" style="font-size:12px;font-weight:400">ბოლო ${a.window_games || 3}</small> ${num(a.recent_avg)}</b>
+      <span class="stat">თამაშები: ${(det.last_values || []).map((x) => num(x, 0)).join(" · ")}</span></div>
     <div class="facts"><span>⏱ წუთი: ${num(det.minutes_baseline)} → ${(det.minutes_last || []).map((x) => num(x, 0)).join("/")}</span>
       <span>🎯 FGA: ${num(det.fga_baseline)} → ${(det.fga_last || []).join("/")}</span>${det.priority != null ? `<span>⚡ ${num(det.priority, 0)}</span>` : ""}</div>
     ${a.conclusion ? `<p>${esc(a.conclusion)}</p>` : ""}
@@ -273,15 +273,18 @@ function bindAlertActions(root, rerender) {
   }));
 }
 
-let astate = "new";
+let astate = "new", awin = 3;
 async function alertsView() {
-  const d = await api(`/api/alerts?status=${astate}`);
+  const d = await api(`/api/alerts?status=${astate}&window=${awin}`);
+  const wins = [5, 3, 2, 1];
   const chips = [["new", "ახალი"], ["concluded", "დასრულებული"], ["closed", "დახურული"], ["all", "ყველა"]];
   view.innerHTML = `
-    <div class="head"><div><h1>სიგნალები</h1><p class="sub">ბოლო 3 თამაში საშუალოზე მკვეთრად მაღლა ან დაბლა. ★ = ჩემი სია</p></div>
-      <div class="chips">${chips.map(([k, l]) => `<button class="chip ${k === astate ? "on" : ""}" data-s="${k}">${l}</button>`).join("")}</div></div>
+    <div class="head"><div><h1>სიგნალები</h1><p class="sub">ბოლო ${awin === 1 ? "თამაში" : awin + " თამაში"} ადრინდელ საშუალოზე მკვეთრად მაღლა ან დაბლა. ★ = ჩემი სია</p></div>
+      <div class="toolbar"><div class="chips">${wins.map((n) => `<button class="chip ${n === awin ? "on" : ""}" data-w="${n}">ბოლო ${n}</button>`).join("")}</div>
+      <div class="chips">${chips.map(([k, l]) => `<button class="chip ${k === astate ? "on" : ""}" data-s="${k}">${l}</button>`).join("")}</div></div></div>
     ${d.alerts.length ? `<div class="grid alerts">${d.alerts.map(alertCard).join("")}</div>` : `<div class="card empty">სიგნალი არ არის</div>`}`;
   view.querySelectorAll("[data-s]").forEach((b) => (b.onclick = () => { astate = b.dataset.s; alertsView(); }));
+  view.querySelectorAll("[data-w]").forEach((b) => (b.onclick = () => { awin = +b.dataset.w; alertsView(); }));
   bindAlertActions(view, alertsView);
   view.querySelectorAll("[data-player]").forEach((b) => (b.onclick = () => openPlayer(b.dataset.player)));
 }
@@ -299,7 +302,7 @@ async function systemView() {
       <div class="grid" style="align-content:start">
         <div class="card"><h2>მონაცემთა პრობლემები</h2>${d.issues.length ? `<table><tbody>${d.issues.map((i) => `<tr><td>${pill(i.resolved ? "გადაწყდა" : "ღია", i.resolved ? "good" : "bad")}</td><td>${esc(i.check_name)}</td><td class="muted">${esc(i.message)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">✓ პრობლემა არ არის</div>`}</div>
         <div class="card"><h2>პარამეტრები</h2>
-          <p class="muted" style="margin:0 0 6px">სიგნალები: კლება &lt; ${d.config.signals.below_factor}× · მატება &gt; ${d.config.signals.above_factor}× · ბაზისი ≥ ${d.config.signals.min_baseline_games} თამაში · ≥ ${d.config.signals.min_avg_minutes} წთ</p>
+          <p class="muted" style="margin:0 0 6px">სიგნალები: კლება &lt; ${d.config.signals.below_factor}× · მატება &gt; ${d.config.signals.above_factor}× · ბაზისი ≥ ${d.config.signals.min_baseline_games} თამაში · ≥ ${d.config.signals.min_avg_minutes} წუთი${(d.config.signals.windows || []).length ? " · ფანჯრები: ბოლო " + d.config.signals.windows.join("/") : ""}</p>
           <p class="muted" style="margin:0">Claude კვლევა: ${d.config.research.auto ? pill("ავტომატური", "good") : pill("ხელით (/research)", "mute")} · დღეში მაქს. ${d.config.research.max_alerts_per_run}</p></div>
         <div class="card"><h2>ანგარიშების არქივი</h2>${d.reports.map((r) => `<button class="btn ghost" style="display:block;width:100%" data-rep="${esc(r.report_date)}">📄 ${esc(r.report_date)} <span class="muted">${r.details?.source === "claude" ? "· Claude" : "· ავტომატური"}</span></button>`).join("")}</div>
       </div></div>`;

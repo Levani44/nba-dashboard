@@ -79,8 +79,8 @@ async function apiOverview() {
   const [report, runs, statRows, alertsNew, alertsDone, issues] = await Promise.all([
     sb("daily_reports", { select: "*", order: "report_date.desc", limit: 1 }, { all: false }),
     sb("agent_runs", { select: "*", order: "id.desc", limit: 60 }, { all: false }),
-    sbCount("player_game_stats"), sbCount("alerts", { status: "eq.new" }),
-    sbCount("alerts", { status: "eq.concluded" }), sbCount("data_issues", { resolved: "eq.false" }),
+    sbCount("player_game_stats"), sbCount("alerts", { status: "eq.new", window_games: "eq.3" }),
+    sbCount("alerts", { status: "eq.concluded", window_games: "eq.3" }), sbCount("data_issues", { resolved: "eq.false" }),
   ]);
   const latest = {};
   for (const r of runs) latest[r.agent] ||= r;
@@ -190,8 +190,9 @@ async function decorateAlerts(rows) {
 async function apiAlerts(q) {
   const params = { select: "*", order: "created_at.desc" };
   if (q.status && q.status !== "all") params.status = `eq.${q.status}`;
+  params.window_games = `eq.${+q.window || 3}`;
   const rows = await decorateAlerts(await sb("alerts", params));
-  rows.sort((a, b) => (b.watch - a.watch) || ((+b.details?.minutes_baseline || 0) - (+a.details?.minutes_baseline || 0)));
+  rows.sort((a, b) => (b.watch - a.watch) || ((b.stat === "points") - (a.stat === "points")) || ((+b.details?.minutes_baseline || 0) - (+a.details?.minutes_baseline || 0)));
   return { alerts: rows };
 }
 
@@ -222,7 +223,7 @@ async function apiPredictions(q) {
       const plist = Object.entries(by[g.id] || {}).map(([pid, st]) => {
         const f = st.minutes || Object.values(st)[0];
         return { id: pid, name: p[pid]?.full_name, team_id: f.team_id, headshot: p[pid]?.headshot_url, injury: f.features?.injury, stats: st };
-      }).sort((a, b) => (+(b.stats.minutes?.predicted) || 0) - (+(a.stats.minutes?.predicted) || 0));
+      }).sort((a, b) => (+(b.stats.points?.predicted) || 0) - (+(a.stats.points?.predicted) || 0));
       out.push({ game: g, home: t[g.home_team_id], away: t[g.away_team_id], players: plist });
     }
   }
