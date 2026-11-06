@@ -5,7 +5,7 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const num = (v, d = 1) => (v === null || v === undefined || v === "" ? "–" : Number(v).toFixed(d).replace(/\.0$/, d ? ".0" : ""));
 const api = (path) => window.NBA.api(path);
 
-const STAT_KA = { points: "ქულები", rebounds: "მოხსნები", assists: "პასები", blocks: "ბლოკები", fg3m: "სამქულიანები", minutes: "მინუტები" };
+const STAT_KA = { points: "ქულები", rebounds: "მოხსნები", assists: "პასები", blocks: "ბლოკები", fg3m: "სამქულიანები", minutes: "წუთები" };
 const VERDICT = {
   real_change: ["რეალური ცვლილება", "good"], noise: ["შემთხვევითი რყევა", "mute"], unclear: ["გაურკვეველი", "warn"],
 };
@@ -250,7 +250,7 @@ function alertCard(a) {
     <div class="change"><span class="pill ${up ? "good" : "bad"}">${up ? "▲ მატება" : "▼ კლება"}</span>
       <span class="muted">${num(a.season_avg)}</span><span class="arrow">→</span><b>${num(a.recent_avg)}</b>
       <span class="stat">ბოლო 3: ${(det.last_values || []).map((x) => num(x, 0)).join(" · ")}</span></div>
-    <div class="facts"><span>⏱ მინ: ${num(det.minutes_baseline)} → ${(det.minutes_last || []).map((x) => num(x, 0)).join("/")}</span>
+    <div class="facts"><span>⏱ წუთი: ${num(det.minutes_baseline)} → ${(det.minutes_last || []).map((x) => num(x, 0)).join("/")}</span>
       <span>🎯 FGA: ${num(det.fga_baseline)} → ${(det.fga_last || []).join("/")}</span>${det.priority != null ? `<span>⚡ ${num(det.priority, 0)}</span>` : ""}</div>
     ${a.conclusion ? `<p>${esc(a.conclusion)}</p>` : ""}
     <div class="actions">${Object.entries(STATUS).map(([k, [l]]) => `<button class="chip sm ${a.status === k ? "on" : ""}" data-status="${k}" data-alert="${a.id}">${l}</button>`).join("")}</div>
