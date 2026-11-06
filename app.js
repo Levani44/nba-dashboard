@@ -6,6 +6,8 @@ const num = (v, d = 1) => (v === null || v === undefined || v === "" ? "–" : N
 const api = (path) => window.NBA.api(path);
 
 const STAT_KA = { points: "ქულები", rebounds: "მოხსნები", assists: "პასები", blocks: "ბლოკები", fg3m: "სამქულიანები", minutes: "წუთები" };
+const LINE_STAT_KA = { ...STAT_KA, steals: "მოპარვები" };
+const oddsTitle = (r) => (r.over_odds || r.under_odds ? `მეტი ${r.over_odds || "–"} / ნაკლები ${r.under_odds || "–"}` : "");
 const VERDICT = {
   real_change: ["რეალური ცვლილება", "good"], noise: ["შემთხვევითი რყევა", "mute"], unclear: ["გაურკვეველი", "warn"],
 };
@@ -13,11 +15,17 @@ const STATUS = { new: ["ახალი", "info"], investigating: ["კვლე
 const RUN = { ok: "good", warning: "warn", failed: "bad", running: "info" };
 const AGENT_KA = {
   collector: "შემგროვებელი", validator: "ვალიდატორი", signals: "სიგნალები", researcher: "მკვლევარი",
-  reporter: "რეპორტიორი", predictor: "პროგნოზისტი", evaluator: "შემფასებელი", report_numeric: "რიცხვითი ანგარიში", orchestrator: "ორკესტრატორი",
+  reporter: "რეპორტიორი", predictor: "პროგნოზისტი", evaluator: "შემფასებელი", odds: "ბაზრის ხაზები", report_numeric: "რიცხვითი ანგარიში", orchestrator: "ორკესტრატორი",
 };
 const fmtDate = (s) => { if (!s) return "–"; const d = new Date(s); return d.toLocaleString("ka-GE", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); };
 const fmtDay = (s) => new Date(s + "T12:00:00").toLocaleDateString("ka-GE", { weekday: "short", month: "long", day: "numeric" });
 const pill = (txt, cls) => `<span class="pill ${cls}">${esc(txt)}</span>`;
+/* recent average compared with the market line */
+const vsLine = (avg, line) => {
+  if (avg === null || avg === undefined) return "";
+  const a = Number(avg), l = Number(line);
+  return a > l ? pill("▲ ხაზზე მაღლა", "good") : a < l ? pill("▼ ხაზზე დაბლა", "bad") : pill("ხაზზე", "mute");
+};
 const teamTag = (t) => t ? `<span class="team">${t.logo_url || t.logo ? `<img src="${esc(t.logo_url || t.logo)}" alt="" loading="lazy">` : ""}${esc(t.abbreviation || t.abbr || "")}</span>` : "";
 
 /* tiny markdown: headings, bullets, bold */
@@ -185,6 +193,9 @@ async function openPlayer(id) {
       ${inj ? `<div class="mt">${pill("🩹 " + inj.status, "bad")} <span class="muted">${esc(inj.short_comment || "")}</span></div>` : ""}</div></div>
     <div class="statline">${[["GP", a.gp], ["PTS", num(a.points)], ["MIN", num(a.minutes)], ["REB", num(a.rebounds)], ["AST", num(a.assists)], ["STL", num(a.steals)], ["BLK", num(a.blocks)], ["3PM", num(a.fg3m)], ["FG%", num(a.fg_pct)], ["3P%", num(a.fg3_pct)]]
       .map(([l, v]) => `<div><b>${v ?? "–"}</b><small>${l}</small></div>`).join("")}</div>
+    ${d.lines.length ? `<h2>ბაზრის ხაზები <small class="muted" style="font-weight:400">${esc(d.lines[0].provider)} · ${esc(d.lines[0].game_date)}</small></h2><div class="table-wrap mb"><table>
+      <thead><tr><th>სტატისტიკა</th><th class="num">ხაზი</th><th class="num">ბოლო 5-ის საშუალო</th><th class="num">სეზონის საშუალო</th><th></th></tr></thead>
+      <tbody>${d.lines.map((r) => `<tr><td>${esc(LINE_STAT_KA[r.stat] || r.stat)}</td><td class="num" title="${esc(oddsTitle(r))}"><b>${num(r.line)}</b></td><td class="num">${num(r.last5)}</td><td class="num">${num(r.season)}</td><td>${vsLine(r.last5, r.line)}</td></tr>`).join("")}</tbody></table></div>` : ""}
     <div class="toolbar" style="justify-content:space-between"><h2 style="margin:0">ფორმა თამაშების მიხედვით</h2>
       <div class="chips" id="pkeys">${Object.entries(STAT_KA).map(([k, l]) => `<button class="chip ${k === key ? "on" : ""}" data-k="${k}">${l}</button>`).join("")}</div></div>
     <div id="pchart" class="mt"></div><p class="muted" style="margin:4px 0 0">წყვეტილი ხაზი = სეზონის საშუალო</p>
@@ -238,6 +249,28 @@ async function predictionsView(params) {
   view.querySelectorAll("tr[data-player]").forEach((tr) => (tr.onclick = () => openPlayer(tr.dataset.player)));
 }
 
+/* ---------------- Market lines ---------------- */
+async function linesView(params) {
+  const d = await api("/api/lines" + (params.date ? `?date=${encodeURIComponent(params.date)}` : ""));
+  const cell = (st) => (st ? `<td class="num" title="${esc(oddsTitle(st))}"><b>${num(st.line)}</b>${st.last5 != null ? `<br><small class="${Number(st.last5) > Number(st.line) ? "up" : Number(st.last5) < Number(st.line) ? "down" : "muted"}">${num(st.last5)}</small>` : ""}</td>` : `<td class="num muted">–</td>`);
+  const table = (rows) => `<div class="table-wrap"><table><thead><tr><th>მოთამაშე</th>${d.stats.map((s) => `<th class="num">${esc(LINE_STAT_KA[s] || s)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map((p) => `<tr ${p.id ? `class="click" data-player="${esc(p.id)}"` : ""}><td><b>${esc(p.name)}</b></td>${d.stats.map((s) => cell(p.stats[s])).join("")}</tr>`).join("")}</tbody></table></div>`;
+  const game = (G) => {
+    if (!G.game) return `<div class="card mt"><h2>სხვა</h2>${table(G.players)}</div>`;
+    const g = G.game, of = (tid) => G.players.filter((p) => p.team_id === tid), rest = G.players.filter((p) => p.team_id !== g.away_team_id && p.team_id !== g.home_team_id);
+    return `<div class="card mt"><div class="toolbar" style="justify-content:space-between"><span class="team">${teamTag(G.away)} <span class="muted">@</span> ${teamTag(G.home)}</span>${pill(new Date(g.game_date).toLocaleTimeString("ka-GE", { hour: "2-digit", minute: "2-digit" }), "info")}</div>
+      <h2 class="mt">${teamTag(G.away)}</h2>${table(of(g.away_team_id))}<h2 class="mt">${teamTag(G.home)}</h2>${table(of(g.home_team_id))}${rest.length ? `<h2 class="mt">სხვა</h2>${table(rest)}` : ""}</div>`;
+  };
+  view.innerHTML = `
+    <div class="head"><div><h1>ბაზრის ხაზები</h1><p class="sub">${d.date ? `${fmtDay(d.date)} · ${d.games.length} მატჩი · ${esc(d.providers.join(", "))}` : "მომავალი მატჩები"}</p></div>
+      ${d.dates.length > 1 ? `<div class="datebar"><select id="ldate">${d.dates.map((x) => `<option ${x === d.date ? "selected" : ""}>${x}</option>`).join("")}</select></div>` : ""}</div>
+    ${d.games.length ? `${d.date !== d.today ? `<div class="card notice">ℹ️ დღევანდელი (${esc(d.today)}, აშშ დროით) ხაზები არ არის. ქვემოთ უახლოესი დღეა.</div>` : ""}${d.games.map(game).join("")}
+      <p class="muted" style="margin-top:10px">მსხვილი = ბაზრის ხაზი, ქვემოთ = ბოლო 5 თამაშის საშუალო (მწვანე = ხაზზე მაღლა, წითელი = დაბლა). მხოლოდ ინფორმაციისთვის. განახლდა: ${fmtDate(d.fetched)}</p>`
+      : `<div class="card empty">ხაზები ჯერ არ არის. ისინი ყოველდღე 15:00-ზე (თბილისის დროით) ჩნდება.</div>`}`;
+  const sel = $("#ldate"); if (sel) sel.onchange = (e) => (location.hash = `#/lines?date=${e.target.value}`);
+  view.querySelectorAll("tr[data-player]").forEach((tr) => (tr.onclick = () => openPlayer(tr.dataset.player)));
+}
+
 /* ---------------- Alerts ---------------- */
 function alertCard(a) {
   const det = a.details || {};
@@ -251,6 +284,8 @@ function alertCard(a) {
       <span class="muted" title="საშუალო ბოლო ${a.window_games || 3} თამაშამდე"><small>საშუალო</small> ${num(a.season_avg)}</span><span class="arrow">→</span><b title="ბოლო ${a.window_games || 3} თამაში, ძველიდან ახლისკენ"><small class="muted" style="font-size:12px;font-weight:400">ბოლო ${a.window_games || 3}:</small> ${(det.last_values || []).map((x) => num(x, 0)).join(" · ")}</b></div>
     <div class="facts"><span>⏱ წუთი: ${num(det.minutes_baseline)} → ${(det.minutes_last || []).map((x) => num(x, 0)).join("/")}</span>
       <span>🎯 FGA: ${num(det.fga_baseline)} → ${(det.fga_last || []).join("/")}</span>${det.priority != null ? `<span>⚡ ${num(det.priority, 0)}</span>` : ""}</div>
+    ${a.prop ? `<div class="mline" title="${esc(oddsTitle(a.prop))}">ბაზრის ხაზი: <b>${num(a.prop.line)}</b> <span class="muted">(${esc(a.prop.provider)}${a.prop.game_date !== todayET() ? " · " + esc(a.prop.game_date) : ""})</span>
+      ${a.recent_avg != null ? `<span class="muted">ბოლო ${a.window_games || 3}-ის საშუალო ${num(a.recent_avg)}</span> ${vsLine(a.recent_avg, a.prop.line)}` : ""}</div>` : ""}
     ${a.conclusion ? `<p>${esc(a.conclusion)}</p>` : ""}
     <div class="actions">${Object.entries(STATUS).map(([k, [l]]) => `<button class="chip sm ${a.status === k ? "on" : ""}" data-status="${k}" data-alert="${a.id}">${l}</button>`).join("")}</div>
     <div class="comments">${(a.comments || []).map((c) => `<div class="cmt"><b>${esc(c.author)}</b> <small class="muted">${fmtDate(c.created_at)}</small><div>${esc(c.body)}</div></div>`).join("")}
@@ -351,7 +386,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#modal"
 $("#refresh").onclick = async () => { await api("/api/refresh"); pcache = null; route(); };
 renderUser();
 
-const ROUTES = { "": overview, games: gamesView, players: playersView, predictions: predictionsView, alerts: alertsView, system: systemView };
+const ROUTES = { "": overview, games: gamesView, players: playersView, predictions: predictionsView, lines: linesView, alerts: alertsView, system: systemView };
 async function route() {
   const [path, qs] = location.hash.replace(/^#\/?/, "").split("?");
   const params = Object.fromEntries(new URLSearchParams(qs || ""));

@@ -180,3 +180,7 @@ details:not([open]) > summary::after { content: "▸"; }
   padding: 9px 16px; border-radius: 999px; transition: .2s; z-index: 60; pointer-events: none; }
 #toast.show { opacity: 1; transform: translateX(-50%); }
 .card.notice { background: var(--info-soft); border-color: transparent; color: var(--text); margin-bottom: 4px; }
+.alert .mline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding: 6px 10px; background: var(--panel-2); border-radius: 8px; font-size: 13px; }
+.up { color: var(--good); }
+.down { color: var(--bad); }
+.mb { margin-bottom: 18px; }

@@ -60,6 +60,18 @@ const games = () => cached("games", async () => (await sb("games", { select: "*"
 const stats = () => cached("stats", () => sb("player_game_stats", {
   select: "game_id,player_id,team_id,starter,did_not_play,dnp_reason,minutes,points,rebounds,assists,steals,blocks,turnovers,fgm,fga,fg3m,fg3a,ftm,fta,plus_minus",
 }));
+const todayET = () => etDate(new Date().toISOString());
+/* market player prop lines from today on (informational only) */
+const propLines = () => cached("props", () => sb("player_prop_lines", {
+  select: "game_id,game_date,player_id,player_name,stat,line,over_odds,under_odds,provider,fetched_at",
+  game_date: `gte.${todayET()}`, order: "game_date.asc,provider.asc",
+}));
+/* {player_id: {stat: row}}: the player's nearest game; a missing table or outage must not break other pages */
+const nextLines = () => cached("nextlines", async () => {
+  const out = {};
+  for (const r of await propLines()) if (r.player_id) (out[r.player_id] ||= {})[r.stat] ||= r;
+  return out;
+}).catch(() => ({}));
 const watchSet = () => cached("watch", async () => new Set((await sb("watchlist", { select: "player_id", active: "eq.true" })).map((w) => w.player_id)), 30000);
 
 /* ---------- views ---------- */
@@ -170,17 +182,22 @@ async function apiPlayer(id) {
     sb("injuries", { select: "*", player_id: `eq.${id}`, order: "reported_at.desc", limit: 3 }, { all: false }),
     sb("alerts", { select: "*", player_id: `eq.${id}`, order: "created_at.desc", limit: 10 }, { all: false }),
   ]);
-  return { player: { ...pl, team: t[pl.team_id] || {} }, avg: rows.find((r) => r.id === id), log, injuries: inj,
+  const avg = rows.find((r) => r.id === id);
+  const last5 = log.filter((r) => !r.did_not_play && +r.minutes > 0).slice(-5);
+  const lastAvg = (k) => (last5.length ? last5.reduce((s, r) => s + (Number(r[k]) || 0), 0) / last5.length : null);
+  const lines = Object.values((await nextLines())[id] || {}).sort((a, b) => statRank(a.stat) - statRank(b.stat))
+    .map((r) => ({ ...r, last5: lastAvg(r.stat), season: avg?.[r.stat] ?? null }));
+  return { player: { ...pl, team: t[pl.team_id] || {} }, avg, lines, log, injuries: inj,
     alerts: (await decorateAlerts(alerts)).sort(alertOrder), watch: w.has(id) };
 }
 
 /* points always first, then a fixed stat order; inside a stat: ★ players, then most minutes */
-const STAT_ORDER = ["points", "rebounds", "assists", "fg3m", "blocks", "minutes"];
+const STAT_ORDER = ["points", "rebounds", "assists", "fg3m", "blocks", "steals", "minutes"];
 const statRank = (s) => { const i = STAT_ORDER.indexOf(s); return i < 0 ? 99 : i; };
 const alertOrder = (a, b) => (statRank(a.stat) - statRank(b.stat)) || (b.watch - a.watch) || ((+b.details?.minutes_baseline || 0) - (+a.details?.minutes_baseline || 0));
 
 async function decorateAlerts(rows) {
-  const [p, t, w] = await Promise.all([players(), teams(), watchSet()]);
+  const [p, t, w, lines] = await Promise.all([players(), teams(), watchSet(), nextLines()]);
   const ids = rows.map((a) => a.id);
   const comments = ids.length ? await sb("alert_comments", { select: "*", alert_id: `in.(${ids.join(",")})`, order: "created_at.asc" }) : [];
   const byAlert = {};
@@ -188,7 +205,8 @@ async function decorateAlerts(rows) {
   return rows.map((a) => {
     const pl = p[a.player_id] || {}, det = a.details || {};
     return { ...a, name: pl.full_name || det.player_name, team: t[det.team_id || pl.team_id]?.abbreviation,
-      headshot: pl.headshot_url, priority: det.priority, watch: w.has(a.player_id), comments: byAlert[a.id] || [] };
+      headshot: pl.headshot_url, priority: det.priority, watch: w.has(a.player_id), comments: byAlert[a.id] || [],
+      prop: lines[a.player_id]?.[a.stat] || null };
   });
 }
 
@@ -237,6 +255,35 @@ async function apiPredictions(q) {
   return { date: d, dates, today: etDate(new Date().toISOString()), games: out, accuracy: { live: acc.accuracy_live || {}, backtest: acc.accuracy_backtest || {} } };
 }
 
+async function apiLines(q) {
+  const [rows, gs, t, p, st] = await Promise.all([propLines(), games(), teams(), players(), stats()]);
+  const dates = [...new Set(rows.map((r) => r.game_date))].sort();
+  const date = q.date && dates.includes(q.date) ? q.date : dates[0] || null;
+  const gmap = byId(gs);
+  const played = {};
+  for (const s of st) if (!s.did_not_play && +s.minutes > 0 && gmap[s.game_id]) (played[s.player_id] ||= []).push(s);
+  const last5 = (pid, stat) => {
+    const l = (played[pid] || []).slice().sort((a, b) => gmap[a.game_id].game_date.localeCompare(gmap[b.game_id].game_date)).slice(-5);
+    return l.length ? l.reduce((sum, s) => sum + (Number(s[stat]) || 0), 0) / l.length : null;
+  };
+  const byGame = {};
+  for (const r of rows.filter((x) => x.game_date === date)) {
+    const pid = r.player_id || r.player_name;
+    const pl = ((byGame[r.game_id || ""] ||= {})[pid] ||= { id: r.player_id, name: r.player_name, team_id: p[r.player_id]?.team_id, stats: {} });
+    pl.stats[r.stat] = { ...r, last5: r.player_id ? last5(r.player_id, r.stat) : null };
+  }
+  const order = (pl) => Number(pl.stats.points?.line ?? -1);
+  const out = Object.entries(byGame).map(([gid, gplayers]) => {
+    const g = gmap[gid] || null;
+    return { game: g, home: g && t[g.home_team_id], away: g && t[g.away_team_id],
+      players: Object.values(gplayers).sort((a, b) => order(b) - order(a)) };
+  }).sort((a, b) => (a.game?.game_date || "z").localeCompare(b.game?.game_date || "z"));
+  const dayStats = STAT_ORDER.filter((s) => rows.some((r) => r.game_date === date && r.stat === s));
+  const fetched = rows.reduce((m, r) => (r.fetched_at > m ? r.fetched_at : m), "");
+  return { date, dates, today: todayET(), games: out, stats: dayStats, fetched,
+    providers: [...new Set(rows.filter((r) => r.game_date === date).map((r) => r.provider))] };
+}
+
 /* ---------- auth + writes (shared passcode, kept in this browser only) ---------- */
 const AUTH_KEY = "nba_dash_auth";
 const getAuth = () => { try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch (_) { return null; } };
@@ -275,6 +322,7 @@ async function nbaApi(path) {
   if (p === "/api/alerts") return apiAlerts(q);
   if (p === "/api/system") return apiSystem();
   if (p === "/api/predictions") return apiPredictions(q);
+  if (p === "/api/lines") return apiLines(q);
   if (p === "/api/refresh") { clearCache(); return { ok: true }; }
   throw new Error("unknown " + p);
 }
