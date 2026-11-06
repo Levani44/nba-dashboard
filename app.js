@@ -248,8 +248,7 @@ function alertCard(a) {
       <div><b class="click" data-player="${esc(a.player_id)}" style="cursor:pointer">${esc(a.name || det.player_name)}</b>${a.watch ? ' <span class="star on">★</span>' : ""}<small>${esc(a.team || "")} · ${esc(STAT_KA[a.stat] || a.stat)}</small></div></div>
       <div style="text-align:right">${v ? pill(v[0], v[1]) : pill(s[0], s[1])}</div></div>
     <div class="change"><span class="pill ${up ? "good" : "bad"}">${up ? "▲ მატება" : "▼ კლება"}</span>
-      <span class="muted" title="საშუალო ბოლო ${a.window_games || 3} თამაშამდე"><small>ადრე</small> ${num(a.season_avg)}</span><span class="arrow">→</span><b title="ბოლო ${a.window_games || 3} თამაშის საშუალო"><small class="muted" style="font-size:12px;font-weight:400">ბოლო ${a.window_games || 3}</small> ${num(a.recent_avg)}</b>
-      <span class="stat">თამაშები: ${(det.last_values || []).map((x) => num(x, 0)).join(" · ")}</span></div>
+      <span class="muted" title="საშუალო ბოლო ${a.window_games || 3} თამაშამდე"><small>საშუალო</small> ${num(a.season_avg)}</span><span class="arrow">→</span><b title="ბოლო ${a.window_games || 3} თამაში, ძველიდან ახლისკენ"><small class="muted" style="font-size:12px;font-weight:400">ბოლო ${a.window_games || 3}:</small> ${(det.last_values || []).map((x) => num(x, 0)).join(" · ")}</b></div>
     <div class="facts"><span>⏱ წუთი: ${num(det.minutes_baseline)} → ${(det.minutes_last || []).map((x) => num(x, 0)).join("/")}</span>
       <span>🎯 FGA: ${num(det.fga_baseline)} → ${(det.fga_last || []).join("/")}</span>${det.priority != null ? `<span>⚡ ${num(det.priority, 0)}</span>` : ""}</div>
     ${a.conclusion ? `<p>${esc(a.conclusion)}</p>` : ""}
