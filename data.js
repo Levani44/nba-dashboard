@@ -171,8 +171,13 @@ async function apiPlayer(id) {
     sb("alerts", { select: "*", player_id: `eq.${id}`, order: "created_at.desc", limit: 10 }, { all: false }),
   ]);
   return { player: { ...pl, team: t[pl.team_id] || {} }, avg: rows.find((r) => r.id === id), log, injuries: inj,
-    alerts: await decorateAlerts(alerts), watch: w.has(id) };
+    alerts: (await decorateAlerts(alerts)).sort(alertOrder), watch: w.has(id) };
 }
+
+/* points always first, then a fixed stat order; inside a stat: ★ players, then most minutes */
+const STAT_ORDER = ["points", "rebounds", "assists", "fg3m", "blocks", "minutes"];
+const statRank = (s) => { const i = STAT_ORDER.indexOf(s); return i < 0 ? 99 : i; };
+const alertOrder = (a, b) => (statRank(a.stat) - statRank(b.stat)) || (b.watch - a.watch) || ((+b.details?.minutes_baseline || 0) - (+a.details?.minutes_baseline || 0));
 
 async function decorateAlerts(rows) {
   const [p, t, w] = await Promise.all([players(), teams(), watchSet()]);
@@ -192,7 +197,7 @@ async function apiAlerts(q) {
   if (q.status && q.status !== "all") params.status = `eq.${q.status}`;
   params.window_games = `eq.${+q.window || 3}`;
   const rows = await decorateAlerts(await sb("alerts", params));
-  rows.sort((a, b) => (b.watch - a.watch) || ((b.stat === "points") - (a.stat === "points")) || ((+b.details?.minutes_baseline || 0) - (+a.details?.minutes_baseline || 0)));
+  rows.sort(alertOrder);
   return { alerts: rows };
 }
 
