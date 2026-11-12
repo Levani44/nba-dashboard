@@ -297,7 +297,7 @@ function alertCard(a) {
     <div class="facts"><span>⏱ წუთი: ${num(det.minutes_baseline)} → ${(det.minutes_last || []).map((x) => num(x, 0)).join("/")}</span>
       <span>🎯 FGA: ${num(det.fga_baseline)} → ${(det.fga_last || []).join("/")}</span>${det.priority != null ? `<span>⚡ ${num(det.priority, 0)}</span>` : ""}</div>
     ${a.prop ? `<div class="mline" title="${esc(oddsTitle(a.prop))}">ბაზრის ხაზი: <b>${num(a.prop.line)}</b> <span class="muted">(${esc(a.prop.provider)}${a.prop.game_date !== todayET() ? " · " + esc(a.prop.game_date) : ""})</span>
-      ${a.recent_avg != null ? `<span class="muted">ბოლო ${a.window_games || 3}-ის საშუალო ${num(a.recent_avg)}</span> ${vsLine(a.recent_avg, a.prop.line)}` : ""}</div>` : ""}
+      ${a.recent_avg != null ? `<span class="muted">ბოლო ${a.window_games || 3}-ის საშუალო ${num(a.recent_avg)}</span> ${vsLine(a.recent_avg, a.prop.line)}` : ""}</div>` : a.noLine ? `<div class="mline nol ${a.noLine.kind}" title="${esc(a.noLine.title || "")}">ბაზრის ხაზი: <span class="muted">${a.noLine.kind === "injury" ? "🩹 " : ""}${esc(a.noLine.text)}</span></div>` : ""}
     ${a.conclusion ? `<p>${esc(a.conclusion)}</p>` : ""}
     <div class="actions">${Object.entries(STATUS).map(([k, [l]]) => `<button class="chip sm ${a.status === k ? "on" : ""}" data-status="${k}" data-alert="${a.id}">${l}</button>`).join("")}</div>
     <div class="comments">${(a.comments || []).map((c) => `<div class="cmt"><b>${esc(c.author)}</b> <small class="muted">${fmtDate(c.created_at)}</small><div>${esc(c.body)}</div></div>`).join("")}
