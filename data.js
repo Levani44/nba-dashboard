@@ -196,48 +196,17 @@ const STAT_ORDER = ["points", "rebounds", "assists", "fg3m", "blocks", "steals",
 const statRank = (s) => { const i = STAT_ORDER.indexOf(s); return i < 0 ? 99 : i; };
 const alertOrder = (a, b) => (statRank(a.stat) - statRank(b.stat)) || (b.watch - a.watch) || ((+b.details?.minutes_baseline || 0) - (+a.details?.minutes_baseline || 0));
 
-/* why an alerted player has no market line: injury, next game not today, or the book skipped him */
-async function noLineReasons(rows, p, lines) {
-  const missing = [...new Set(rows.filter((a) => !lines[a.player_id]?.[a.stat]).map((a) => a.player_id))];
-  if (!missing.length) return {};
-  const [gs, props, inj] = await Promise.all([
-    games(), propLines().catch(() => []),
-    sb("injuries", { select: "player_id,status,short_comment,fetched_at", player_id: `in.(${missing.join(",")})`, order: "fetched_at.desc" }).catch(() => []),
-  ]);
-  const today = todayET(), fresh = Date.now() - 36 * 3600000;
-  const gamesWithLines = new Set(props.map((r) => r.game_id).filter(Boolean));
-  const latestInj = {};
-  for (const r of inj) if (!(r.player_id in latestInj)) latestInj[r.player_id] = r;
-  const out = {};
-  for (const id of missing) {
-    const team = p[id]?.team_id, i = latestInj[id];
-    if (i && new Date(i.fetched_at) > fresh && /out|doubtful/i.test(i.status || "")) {
-      out[id] = { kind: "injury", text: `ტრავმა (${i.status}), ბაზარი ხაზს არ დებს`, title: i.short_comment || "" };
-      continue;
-    }
-    const g = gs.find((x) => !x.is_final && x.et_date >= today && (x.home_team_id === team || x.away_team_id === team));
-    if (!g) out[id] = { kind: "nogame", text: "უახლოესი მატჩი არ ჩანს" };
-    else if (g.et_date > today) out[id] = { kind: "later", text: `შემდეგი მატჩი ${g.et_date.slice(5).replace("-", "/")}, ხაზი მატჩის დღეს გამოჩნდება` };
-    else if (gamesWithLines.has(g.id)) out[id] = { kind: "skipped", text: "დღეს თამაშობს, მაგრამ ბუკმეკერმა ამ სტატისტიკაზე ხაზი არ დადო" };
-    else out[id] = { kind: "pending", text: "დღეს თამაშობს, ხაზი ჯერ არ დადებულა" };
-  }
-  return out;
-}
-
 async function decorateAlerts(rows) {
   const [p, t, w, lines] = await Promise.all([players(), teams(), watchSet(), nextLines()]);
   const ids = rows.map((a) => a.id);
-  const [comments, why] = await Promise.all([
-    ids.length ? sb("alert_comments", { select: "*", alert_id: `in.(${ids.join(",")})`, order: "created_at.asc" }) : [],
-    noLineReasons(rows, p, lines).catch(() => ({})),
-  ]);
+  const comments = ids.length ? await sb("alert_comments", { select: "*", alert_id: `in.(${ids.join(",")})`, order: "created_at.asc" }) : [];
   const byAlert = {};
   for (const c of comments) (byAlert[c.alert_id] ||= []).push(c);
   return rows.map((a) => {
     const pl = p[a.player_id] || {}, det = a.details || {};
     return { ...a, name: pl.full_name || det.player_name, team: t[det.team_id || pl.team_id]?.abbreviation,
       headshot: pl.headshot_url, priority: det.priority, watch: w.has(a.player_id), comments: byAlert[a.id] || [],
-      prop: lines[a.player_id]?.[a.stat] || null, noLine: why[a.player_id] || null };
+      prop: lines[a.player_id]?.[a.stat] || null };
   });
 }
 

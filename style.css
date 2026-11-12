@@ -146,6 +146,8 @@ tr.dnp td { color: var(--muted); }
 .chart .avg { stroke: var(--muted); stroke-dasharray: 4 4; }
 .chart text { fill: var(--muted); font-size: 10px; }
 .chart text.min { font-size: 8px; fill: var(--bad, #e5484d); }
+.miss { font-size: 12px; font-weight: 600; color: var(--bad, #e5484d); border: 1px dashed var(--bad, #e5484d); border-radius: 6px; padding: 0 5px; }
+.alert .missed { margin: 6px 0; padding: 6px 8px; border-radius: 8px; font-size: 13px; color: var(--bad, #e5484d); background: rgba(229,72,77,.1); }
 .minl { font-size: 10px; font-weight: 400; color: var(--bad, #e5484d); }
 .empty { color: var(--muted); padding: 30px; text-align: center; }
 .mt { margin-top: 16px; }
@@ -186,6 +188,3 @@ details:not([open]) > summary::after { content: "▸"; }
 .up { color: var(--good); }
 .down { color: var(--bad); }
 .mb { margin-bottom: 18px; }
-
-.alert .mline.nol { opacity: .85; }
-.alert .mline.nol.injury .muted { color: var(--bad, #f87171); }

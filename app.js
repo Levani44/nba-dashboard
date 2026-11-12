@@ -276,6 +276,13 @@ async function linesView(params) {
 }
 
 /* ---------------- Alerts ---------------- */
+// played values + missed team games, in date order (old alerts have no missed_games)
+function alertSlots(det) {
+  const vals = det.last_values || [], dates = det.last_game_dates || [];
+  const slots = vals.map((v, i) => ({ v, m: det.minutes_last ? det.minutes_last[i] : null, d: dates[i] || "" }));
+  (det.missed_games || []).forEach((m) => slots.push({ miss: m, d: m.date || "" }));
+  return slots.sort((x, y) => (x.d < y.d ? -1 : x.d > y.d ? 1 : 0));
+}
 function alertCard(a) {
   const det = a.details || {};
   const up = a.rule === "above_avg_streak";
@@ -285,11 +292,12 @@ function alertCard(a) {
       <div><b class="click" data-player="${esc(a.player_id)}" style="cursor:pointer">${esc(a.name || det.player_name)}</b>${a.watch ? ' <span class="star on">★</span>' : ""}<small>${esc(a.team || "")} · ${esc(STAT_KA[a.stat] || a.stat)}</small></div></div>
       <div style="text-align:right">${v ? pill(v[0], v[1]) : pill(s[0], s[1])}</div></div>
     <div class="change"><span class="pill ${up ? "good" : "bad"}">${up ? "▲ მატება" : "▼ კლება"}</span>
-      <span class="muted" title="საშუალო ბოლო ${a.window_games || 3} თამაშამდე"><small>საშუალო</small> ${num(a.season_avg)}</span><span class="arrow">→</span><b title="ბოლო ${a.window_games || 3} თამაში, ძველიდან ახლისკენ"><small class="muted" style="font-size:12px;font-weight:400">ბოლო ${a.window_games || 3}:</small> ${(det.last_values || []).map((x, i) => num(x, 0) + (a.stat !== "minutes" && det.minutes_last && det.minutes_last[i] != null ? ` <small class="minl">${num(det.minutes_last[i], 0)}min</small>` : "")).join(" · ")}</b></div>
+      <span class="muted" title="საშუალო ბოლო ${a.window_games || 3} თამაშამდე"><small>საშუალო</small> ${num(a.season_avg)}</span><span class="arrow">→</span><b title="ბოლო ${a.window_games || 3} თამაში, ძველიდან ახლისკენ"><small class="muted" style="font-size:12px;font-weight:400">ბოლო ${a.window_games || 3}:</small> ${alertSlots(det).map((sl) => sl.miss ? `<span class="miss" title="${esc(sl.miss.date.slice(0, 10))}${sl.miss.reason ? " · " + esc(sl.miss.reason) : ""}">არ ითამაშა</span>` : num(sl.v, 0) + (a.stat !== "minutes" && sl.m != null ? ` <small class="minl">${num(sl.m, 0)}min</small>` : "")).join(" · ")}</b></div>
+    ${(det.missed_games || []).length ? `<div class="missed">⚠️ გუნდის ბოლო ${det.team_games_in_window || a.window_games} თამაშიდან ${det.missed_games.length} გამოტოვა: ${det.missed_games.map((m) => esc(m.date.slice(5, 10).replace("-", "/")) + (m.reason ? ` (${esc(m.reason)})` : "")).join(", ")}</div>` : ""}
     <div class="facts"><span>⏱ წუთი: ${num(det.minutes_baseline)} → ${(det.minutes_last || []).map((x) => num(x, 0)).join("/")}</span>
       <span>🎯 FGA: ${num(det.fga_baseline)} → ${(det.fga_last || []).join("/")}</span>${det.priority != null ? `<span>⚡ ${num(det.priority, 0)}</span>` : ""}</div>
     ${a.prop ? `<div class="mline" title="${esc(oddsTitle(a.prop))}">ბაზრის ხაზი: <b>${num(a.prop.line)}</b> <span class="muted">(${esc(a.prop.provider)}${a.prop.game_date !== todayET() ? " · " + esc(a.prop.game_date) : ""})</span>
-      ${a.recent_avg != null ? `<span class="muted">ბოლო ${a.window_games || 3}-ის საშუალო ${num(a.recent_avg)}</span> ${vsLine(a.recent_avg, a.prop.line)}` : ""}</div>` : a.noLine ? `<div class="mline nol ${a.noLine.kind}" title="${esc(a.noLine.title || "")}">ბაზრის ხაზი: <span class="muted">${a.noLine.kind === "injury" ? "🩹 " : ""}${esc(a.noLine.text)}</span></div>` : ""}
+      ${a.recent_avg != null ? `<span class="muted">ბოლო ${a.window_games || 3}-ის საშუალო ${num(a.recent_avg)}</span> ${vsLine(a.recent_avg, a.prop.line)}` : ""}</div>` : ""}
     ${a.conclusion ? `<p>${esc(a.conclusion)}</p>` : ""}
     <div class="actions">${Object.entries(STATUS).map(([k, [l]]) => `<button class="chip sm ${a.status === k ? "on" : ""}" data-status="${k}" data-alert="${a.id}">${l}</button>`).join("")}</div>
     <div class="comments">${(a.comments || []).map((c) => `<div class="cmt"><b>${esc(c.author)}</b> <small class="muted">${fmtDate(c.created_at)}</small><div>${esc(c.body)}</div></div>`).join("")}
