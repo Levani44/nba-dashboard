@@ -186,3 +186,6 @@ details:not([open]) > summary::after { content: "▸"; }
 .up { color: var(--good); }
 .down { color: var(--bad); }
 .mb { margin-bottom: 18px; }
+
+.alert .mline.nol { opacity: .85; }
+.alert .mline.nol.injury .muted { color: var(--bad, #f87171); }
