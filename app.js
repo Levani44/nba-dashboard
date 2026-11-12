@@ -278,6 +278,13 @@ async function linesView(params) {
 }
 
 /* ---------------- Alerts ---------------- */
+// why a player missed a game (box-score DNP reason or injury report)
+function missReason(m) {
+  const r = (m.reason || "").trim();
+  if (!r) return "მიზეზი უცნობია";
+  if (/coach/i.test(r)) return "მწვრთნელის გადაწყვეტილება";
+  return r;
+}
 // played values + missed team games, in date order (old alerts have no missed_games)
 function alertSlots(det) {
   const vals = det.last_values || [], dates = det.last_game_dates || [];
@@ -294,8 +301,8 @@ function alertCard(a) {
       <div><b class="click" data-player="${esc(a.player_id)}" style="cursor:pointer">${esc(a.name || det.player_name)}</b>${a.watch ? ' <span class="star on">★</span>' : ""}<small>${esc(a.team || "")} · ${esc(STAT_KA[a.stat] || a.stat)}</small></div></div>
       <div style="text-align:right">${v ? pill(v[0], v[1]) : pill(s[0], s[1])}</div></div>
     <div class="change"><span class="pill ${up ? "good" : "bad"}">${up ? "▲ მატება" : "▼ კლება"}</span>
-      <span class="muted" title="საშუალო ბოლო ${a.window_games || 3} თამაშამდე"><small>საშუალო</small> ${num(a.season_avg)}</span><span class="arrow">→</span><b title="ბოლო ${a.window_games || 3} თამაში, ძველიდან ახლისკენ"><small class="muted" style="font-size:12px;font-weight:400">ბოლო ${a.window_games || 3}:</small> ${alertSlots(det).map((sl) => sl.miss ? `<span class="miss" title="${esc(sl.miss.date.slice(0, 10))}${sl.miss.reason ? " · " + esc(sl.miss.reason) : ""}">არ ითამაშა</span>` : num(sl.v, 0) + (a.stat !== "minutes" && sl.m != null ? ` <small class="minl">${num(sl.m, 0)}min</small>` : "")).join(" · ")}</b></div>
-    ${(det.missed_games || []).length ? `<div class="missed">⚠️ გუნდის ბოლო ${det.team_games_in_window || a.window_games} თამაშიდან ${det.missed_games.length} გამოტოვა: ${det.missed_games.map((m) => esc(m.date.slice(5, 10).replace("-", "/")) + (m.reason ? ` (${esc(m.reason)})` : "")).join(", ")}</div>` : ""}
+      <span class="muted" title="საშუალო ბოლო ${a.window_games || 3} თამაშამდე"><small>საშუალო</small> ${num(a.season_avg)}</span><span class="arrow">→</span><b title="ბოლო ${a.window_games || 3} თამაში, ძველიდან ახლისკენ"><small class="muted" style="font-size:12px;font-weight:400">ბოლო ${a.window_games || 3}:</small> ${alertSlots(det).map((sl) => sl.miss ? `<span class="miss" title="${esc(sl.miss.date.slice(5, 10).replace("-", "/"))}: ${esc(missReason(sl.miss))}">OUT</span>` : num(sl.v, 0) + (a.stat !== "minutes" && sl.m != null ? ` <small class="minl">${num(sl.m, 0)}min</small>` : "")).join(" · ")}</b></div>
+    ${(det.missed_games || []).length ? `<div class="missed">⚠️ გუნდის ბოლო ${det.team_games_in_window || a.window_games} თამაშიდან ${det.missed_games.length} გამოტოვა: ${det.missed_games.map((m) => esc(m.date.slice(5, 10).replace("-", "/")) + ` (${esc(missReason(m))})`).join(", ")}</div>` : ""}
     <div class="facts"><span>⏱ წუთი: ${num(det.minutes_baseline)} → ${(det.minutes_last || []).map((x) => num(x, 0)).join("/")}</span>
       <span>🎯 FGA: ${num(det.fga_baseline)} → ${(det.fga_last || []).join("/")}</span>${det.priority != null ? `<span>⚡ ${num(det.priority, 0)}</span>` : ""}</div>
     ${a.prop ? `<div class="mline" title="${esc(oddsTitle(a.prop))}">ბაზრის ხაზი: <b>${num(a.prop.line)}</b> <span class="muted">(${esc(a.prop.provider)}${a.prop.game_date !== todayET() ? " · " + esc(a.prop.game_date) : ""})</span>
@@ -366,12 +373,12 @@ function watchCard(t) {
       <div><b class="click" data-player="${esc(t.player_id)}" style="cursor:pointer">${esc(a.name || det.player_name || t.player_id)}</b><small>${esc(a.team || "")} · ${esc(STAT_KA[t.stat] || t.stat)} · მონიშნა ${esc(t.added_by || "")} ${fmtDate(t.created_at)}</small></div></div>
       <div style="text-align:right">${pill(st[0], st[1])}</div></div>
     <div class="change"><span class="pill ${up ? "good" : "bad"}">${up ? "▲ მატება" : "▼ კლება"}</span>
-      <span class="muted"><small>საშუალო</small> ${num(t.baseline)}</span><span class="arrow">→</span><b><small class="muted" style="font-size:12px;font-weight:400">სიგნალი (ბოლო ${t.window_games || 3}):</small> ${alertSlots(det).map((sl) => sl.miss ? `<span class="miss">არ ითამაშა</span>` : num(sl.v, 0) + (!isMin && sl.m != null ? ` <small class="minl">${num(sl.m, 0)}min</small>` : "")).join(" · ") || (t.signal_values || []).map((v) => num(v, 0)).join(" · ")}</b></div>
+      <span class="muted"><small>საშუალო</small> ${num(t.baseline)}</span><span class="arrow">→</span><b><small class="muted" style="font-size:12px;font-weight:400">სიგნალი (ბოლო ${t.window_games || 3}):</small> ${alertSlots(det).map((sl) => sl.miss ? `<span class="miss" title="${esc(sl.miss.date.slice(5, 10).replace("-", "/"))}: ${esc(missReason(sl.miss))}">OUT</span>` : num(sl.v, 0) + (!isMin && sl.m != null ? ` <small class="minl">${num(sl.m, 0)}min</small>` : "")).join(" · ") || (t.signal_values || []).map((v) => num(v, 0)).join(" · ")}</b></div>
     ${t.note ? `<div class="note">📝 ${esc(t.note)}</div>` : ""}
     <h3>რა მოხდა სიგნალის შემდეგ</h3>
     ${games.length ? `<div class="table-wrap"><table class="follow"><thead><tr><th>თარიღი</th><th>მეტოქე</th><th class="num">${esc(STAT_KA[t.stat] || t.stat)}</th><th class="num">ბაზრის ხაზი</th><th>ხაზთან</th><th>სიგნალთან</th></tr></thead>
       <tbody>${games.map((g) => `<tr><td>${esc(shortDay(g.date))}</td><td>${g.home ? "" : "@ "}${esc(g.opp)}</td>${g.dnp
-        ? `<td colspan="4"><span class="miss">არ ითამაშა</span>${g.reason ? ` <small class="muted">${esc(g.reason)}</small>` : ""}</td>`
+        ? `<td colspan="4"><span class="miss" title="${esc(missReason(g))}">OUT</span> <small class="muted">${esc(missReason(g))}</small></td>`
         : `<td class="num"><b>${num(g.value, 0)}</b>${!isMin && g.minutes != null ? ` <small class="minl">${num(g.minutes, 0)}min</small>` : ""}</td><td class="num">${g.line != null ? num(g.line) : `<span class="muted">–</span>`}</td>
           <td>${g.result ? pill(g.result === "over" ? "▲ მეტი" : g.result === "under" ? "▼ ნაკლები" : "ზუსტად", g.result === "over" ? "good" : g.result === "under" ? "bad" : "mute") : ""}</td>
           <td>${g.vs_signal ? pill(VS_SIGNAL[g.vs_signal][0], g.vs_signal === "cont" ? (up ? "good" : "bad") : g.vs_signal === "opposite" ? (up ? "bad" : "good") : "mute") : ""}</td>`}</tr>`).join("")}</tbody></table></div>
