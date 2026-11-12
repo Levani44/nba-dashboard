@@ -168,18 +168,18 @@ async function toggleWatch(id, active) {
 function barChart(log, key, avg) {
   // showMin: under each bar, also show the minutes played in that game (not needed on the minutes chart itself)
   const showMin = key !== "minutes";
-  const W = 760, H = showMin ? 186 : 170, P = 22, PB = showMin ? 38 : 22, n = log.length;
+  const W = 760, H = showMin ? 180 : 170, P = 22, PB = showMin ? 32 : 22, n = log.length;
   if (!n) return "";
   const max = Math.max(1, ...log.map((r) => Number(r[key]) || 0), avg || 0);
   const bw = Math.min(42, (W - P * 2) / n - 6);
   const x = (i) => P + i * ((W - P * 2) / n) + 3;
   const y = (v) => H - PB - (v / max) * (H - P - PB);
-  const mins = (r) => (r.did_not_play || r.minutes == null ? "" : `${Math.round(Number(r.minutes))} წუთი`);
+  const mins = (r) => (r.did_not_play || r.minutes == null ? "" : `${Math.round(Number(r.minutes))}min`);
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">
     ${log.map((r, i) => { const v = r.did_not_play ? 0 : Number(r[key]) || 0, m = mins(r); return `<rect class="bar ${r.did_not_play ? "dnp" : ""}" x="${x(i)}" y="${y(v)}" width="${bw}" height="${H - PB - y(v)}" rx="4"><title>${esc(r.date)} vs ${esc(r.opp)}: ${v}${m ? " · " + m : ""}</title></rect>
       <text x="${x(i) + bw / 2}" y="${y(v) - 4}" text-anchor="middle">${r.did_not_play ? "" : v}</text>
-      <text x="${x(i) + bw / 2}" y="${H - PB + 14}" text-anchor="middle">${esc(r.opp || "")}</text>
-      ${showMin ? `<text class="min" x="${x(i) + bw / 2}" y="${H - 6}" text-anchor="middle">${r.did_not_play ? "DNP" : m}</text>` : ""}`; }).join("")}
+      <text x="${x(i) + bw / 2}" y="${H - PB + 13}" text-anchor="middle">${esc(r.opp || "")}</text>
+      ${showMin ? `<text class="min" x="${x(i) + bw / 2}" y="${H - 7}" text-anchor="middle">${r.did_not_play ? "DNP" : m}</text>` : ""}`; }).join("")}
     ${avg ? `<line class="avg" x1="${P}" x2="${W - P}" y1="${y(avg)}" y2="${y(avg)}"/>` : ""}
   </svg>`;
 }
@@ -285,7 +285,7 @@ function alertCard(a) {
       <div><b class="click" data-player="${esc(a.player_id)}" style="cursor:pointer">${esc(a.name || det.player_name)}</b>${a.watch ? ' <span class="star on">★</span>' : ""}<small>${esc(a.team || "")} · ${esc(STAT_KA[a.stat] || a.stat)}</small></div></div>
       <div style="text-align:right">${v ? pill(v[0], v[1]) : pill(s[0], s[1])}</div></div>
     <div class="change"><span class="pill ${up ? "good" : "bad"}">${up ? "▲ მატება" : "▼ კლება"}</span>
-      <span class="muted" title="საშუალო ბოლო ${a.window_games || 3} თამაშამდე"><small>საშუალო</small> ${num(a.season_avg)}</span><span class="arrow">→</span><b title="ბოლო ${a.window_games || 3} თამაში, ძველიდან ახლისკენ"><small class="muted" style="font-size:12px;font-weight:400">ბოლო ${a.window_games || 3}:</small> ${(det.last_values || []).map((x, i) => num(x, 0) + (a.stat !== "minutes" && det.minutes_last && det.minutes_last[i] != null ? ` <small class="muted" style="font-size:12px;font-weight:400">(${num(det.minutes_last[i], 0)} წუთი)</small>` : "")).join(" · ")}</b></div>
+      <span class="muted" title="საშუალო ბოლო ${a.window_games || 3} თამაშამდე"><small>საშუალო</small> ${num(a.season_avg)}</span><span class="arrow">→</span><b title="ბოლო ${a.window_games || 3} თამაში, ძველიდან ახლისკენ"><small class="muted" style="font-size:12px;font-weight:400">ბოლო ${a.window_games || 3}:</small> ${(det.last_values || []).map((x, i) => num(x, 0) + (a.stat !== "minutes" && det.minutes_last && det.minutes_last[i] != null ? ` <small class="minl">${num(det.minutes_last[i], 0)}min</small>` : "")).join(" · ")}</b></div>
     <div class="facts"><span>⏱ წუთი: ${num(det.minutes_baseline)} → ${(det.minutes_last || []).map((x) => num(x, 0)).join("/")}</span>
       <span>🎯 FGA: ${num(det.fga_baseline)} → ${(det.fga_last || []).join("/")}</span>${det.priority != null ? `<span>⚡ ${num(det.priority, 0)}</span>` : ""}</div>
     ${a.prop ? `<div class="mline" title="${esc(oddsTitle(a.prop))}">ბაზრის ხაზი: <b>${num(a.prop.line)}</b> <span class="muted">(${esc(a.prop.provider)}${a.prop.game_date !== todayET() ? " · " + esc(a.prop.game_date) : ""})</span>

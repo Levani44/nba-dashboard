@@ -145,7 +145,8 @@ tr.dnp td { color: var(--muted); }
 .chart .bar.dnp { fill: var(--line); }
 .chart .avg { stroke: var(--muted); stroke-dasharray: 4 4; }
 .chart text { fill: var(--muted); font-size: 10px; }
-.chart text.min { font-size: 9px; opacity: .85; }
+.chart text.min { font-size: 8px; fill: var(--bad, #e5484d); }
+.minl { font-size: 10px; font-weight: 400; color: var(--bad, #e5484d); }
 .empty { color: var(--muted); padding: 30px; text-align: center; }
 .mt { margin-top: 16px; }
 .muted { color: var(--muted); }
