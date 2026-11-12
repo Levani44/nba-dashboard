@@ -74,6 +74,16 @@ const nextLines = () => cached("nextlines", async () => {
 }).catch(() => ({}));
 const watchSet = () => cached("watch", async () => new Set((await sb("watchlist", { select: "player_id", active: "eq.true" })).map((w) => w.player_id)), 30000);
 
+/* signals marked for observation: {alert_id: {id, active}}; a missing table must not break other pages */
+const trackedMap = () => cached("tracked", async () => Object.fromEntries((await sb("tracked_signals", { select: "id,alert_id,active" })).map((r) => [r.alert_id, r])), 30000).catch(() => ({}));
+const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+/* notable automatic observations on tracked signals, newest first (same event on several stats of a player shown once) */
+async function watchFeed(limit = 30, days = 7) {
+  const rows = await sb("tracked_observations", { select: "*", notable: "eq.true", obs_date: `gte.${daysAgo(days)}`, order: "obs_date.desc,id.desc", limit: 200 }, { all: false });
+  const seen = new Set();
+  return rows.filter((o) => { const k = o.kind === "game" || o.kind === "missed" || o.kind === "status" ? o.id : `${o.player_id}|${o.dedupe_key}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, limit);
+}
+
 /* ---------- views ---------- */
 async function apiOverview() {
   const [gs, t, p] = await Promise.all([games(), teams(), players()]);
@@ -94,6 +104,7 @@ async function apiOverview() {
     sbCount("player_game_stats"), sbCount("alerts", { status: "eq.new", window_games: "eq.3" }),
     sbCount("alerts", { status: "eq.concluded", window_games: "eq.3" }), sbCount("data_issues", { resolved: "eq.false" }),
   ]);
+  const [feed, tracked] = await Promise.all([watchFeed(6, 3).catch(() => []), trackedMap()]);
   const latest = {};
   for (const r of runs) latest[r.agent] ||= r;
   return {
@@ -102,6 +113,7 @@ async function apiOverview() {
       stat_rows: statRows, alerts_new: alertsNew, alerts_concluded: alertsDone, open_issues: issues,
       today_games: gs.filter((g) => g.et_date === today).length,
     },
+    watch: { feed, active: Object.values(tracked).filter((r) => r.active).length, players: p },
     report: report[0] || null, agents: Object.values(latest), standings, last_update: runs[0]?.finished_at,
   };
 }
@@ -225,7 +237,7 @@ async function noLineReasons(rows, p, lines) {
 }
 
 async function decorateAlerts(rows) {
-  const [p, t, w, lines] = await Promise.all([players(), teams(), watchSet(), nextLines()]);
+  const [p, t, w, lines, tr] = await Promise.all([players(), teams(), watchSet(), nextLines(), trackedMap()]);
   const ids = rows.map((a) => a.id);
   const [comments, why] = await Promise.all([
     ids.length ? sb("alert_comments", { select: "*", alert_id: `in.(${ids.join(",")})`, order: "created_at.asc" }) : [],
@@ -237,7 +249,8 @@ async function decorateAlerts(rows) {
     const pl = p[a.player_id] || {}, det = a.details || {};
     return { ...a, name: pl.full_name || det.player_name, team: t[det.team_id || pl.team_id]?.abbreviation,
       headshot: pl.headshot_url, priority: det.priority, watch: w.has(a.player_id), comments: byAlert[a.id] || [],
-      prop: lines[a.player_id]?.[a.stat] || null, noLine: why[a.player_id] || null };
+      prop: lines[a.player_id]?.[a.stat] || null, noLine: why[a.player_id] || null,
+      tracked: !!tr[a.id]?.active, everTracked: !!tr[a.id] };
   });
 }
 
@@ -248,6 +261,23 @@ async function apiAlerts(q) {
   const rows = await decorateAlerts(await sb("alerts", params));
   rows.sort(alertOrder);
   return { alerts: rows };
+}
+
+/* marked signals + what happened in the games after the signal (computed daily by agents/tracker.py) */
+async function apiWatch(q) {
+  const archived = q.archived === "1";
+  const rows = await sb("tracked_signals", { select: "*", active: `eq.${!archived}`, order: "created_at.desc" });
+  if (!rows.length) return { archived, items: [], feed: archived ? [] : await watchFeed().catch(() => []), players: await players() };
+  const [alerts, obs, feed, p] = await Promise.all([
+    sb("alerts", { select: "*", id: `in.(${rows.map((r) => r.alert_id).join(",")})` }).then(decorateAlerts),
+    sb("tracked_observations", { select: "*", tracked_id: `in.(${rows.map((r) => r.id).join(",")})`, order: "obs_date.desc,id.desc" }),
+    archived ? [] : watchFeed().catch(() => []), players(),
+  ]);
+  const am = byId(alerts), byT = {};
+  for (const o of obs) (byT[o.tracked_id] ||= []).push(o);
+  const items = rows.map((r) => ({ ...r, alert: am[r.alert_id] || null, obs: byT[r.id] || [] }))
+    .sort((a, b) => (statRank(a.stat) - statRank(b.stat)) || b.created_at.localeCompare(a.created_at));
+  return { archived, items, feed, players: p };
 }
 
 async function apiSystem() {
@@ -334,6 +364,11 @@ async function addComment(id, body) {
   const a = getAuth();
   return rpc("dash_add_comment", { p_code: a.code, p_alert_id: id, p_author: a.name, p_body: body });
 }
+async function trackSignal(alertId, active, note) {
+  const a = getAuth();
+  await rpc("dash_track_signal", { p_code: a.code, p_alert_id: alertId, p_active: active, p_note: note || null, p_by: a.name });
+  _cache.delete("tracked"); _cache.delete("watch");
+}
 async function setWatch(pid, active) {
   const a = getAuth();
   await rpc("dash_watchlist_set", { p_code: a.code, p_player_id: pid, p_active: active, p_note: null, p_added_by: a.name });
@@ -352,10 +387,11 @@ async function nbaApi(path) {
   if (p.startsWith("/api/player/")) return apiPlayer(p.split("/").pop());
   if (p === "/api/alerts") return apiAlerts(q);
   if (p === "/api/system") return apiSystem();
+  if (p === "/api/watch") return apiWatch(q);
   if (p === "/api/predictions") return apiPredictions(q);
   if (p === "/api/lines") return apiLines(q);
   if (p === "/api/refresh") { clearCache(); return { ok: true }; }
   throw new Error("unknown " + p);
 }
 
-window.NBA = { api: nbaApi, getAuth, login, logout, setAlertStatus, addComment, setWatch, clearCache };
+window.NBA = { api: nbaApi, getAuth, login, logout, setAlertStatus, addComment, setWatch, trackSignal, clearCache };

@@ -191,3 +191,17 @@ details:not([open]) > summary::after { content: "▸"; }
 
 .alert .mline.nol { opacity: .85; }
 .alert .mline.nol.injury .muted { color: var(--bad, #f87171); }
+
+/* watch (marked signals) */
+.watchgrid { grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); }
+.watch h3 { margin: 14px 0 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+.watch .note { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--warn-soft); font-size: 13px; }
+.watch table.follow td, .watch table.follow th { padding: 6px 8px; }
+.watch .obslog { margin-top: 10px; font-size: 13px; }
+.watch .obslog summary { cursor: pointer; color: var(--muted); }
+.feed { display: flex; flex-direction: column; gap: 6px; }
+.obs { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.obs.nb { font-weight: 500; }
+.obs .ic { flex: none; width: 18px; text-align: center; }
+.chip.track.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+@media (max-width: 560px) { .watchgrid { grid-template-columns: 1fr; } }

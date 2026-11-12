@@ -15,7 +15,7 @@ const STATUS = { new: ["ახალი", "info"], investigating: ["კვლე
 const RUN = { ok: "good", warning: "warn", failed: "bad", running: "info" };
 const AGENT_KA = {
   collector: "შემგროვებელი", validator: "ვალიდატორი", signals: "სიგნალები", researcher: "მკვლევარი",
-  reporter: "რეპორტიორი", predictor: "პროგნოზისტი", evaluator: "შემფასებელი", odds: "ბაზრის ხაზები", report_numeric: "რიცხვითი ანგარიში", orchestrator: "ორკესტრატორი",
+  reporter: "რეპორტიორი", tracker: "დამკვირვებელი", predictor: "პროგნოზისტი", evaluator: "შემფასებელი", odds: "ბაზრის ხაზები", report_numeric: "რიცხვითი ანგარიში", orchestrator: "ორკესტრატორი",
 };
 const fmtDate = (s) => { if (!s) return "–"; const d = new Date(s); return d.toLocaleString("ka-GE", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); };
 const fmtDay = (s) => new Date(s + "T12:00:00").toLocaleDateString("ka-GE", { weekday: "short", month: "long", day: "numeric" });
@@ -47,7 +47,7 @@ function md(src) {
 async function overview() {
   const d = await api("/api/overview");
   const k = d.kpi;
-  $("#nav-alerts").textContent = k.alerts_new || "";
+  $("#nav-alerts").textContent = k.alerts_new || ""; $("#nav-watch").textContent = d.watch.active || "";
   $("#updated").textContent = d.last_update ? "ბოლო განახლება: " + fmtDate(d.last_update) : "";
   const kpi = (label, value, hint = "", cls = "") => `<div class="card kpi ${cls}"><div class="label">${label}</div><div class="value">${value}</div><div class="hint">${hint}</div></div>`;
   const st = d.standings;
@@ -65,6 +65,8 @@ async function overview() {
           <span class="muted">${esc(d.report.report_date)}</span>${pill(d.report.details?.source === "claude" ? "Claude ანგარიში" : "ავტომატური", d.report.details?.source === "claude" ? "info" : "mute")}</div>
           ${md(d.report.summary)}` : `<div class="empty">ანგარიში ჯერ არ არის</div>`}</div>
       <div class="grid" style="align-content:start">
+        ${d.watch.active || d.watch.feed.length ? `<div class="card"><div class="toolbar" style="justify-content:space-between"><h2 style="margin:0">👁 ჩემი დაკვირვებები</h2><a class="linkbtn" href="#/watch">${d.watch.active} მონიშნული სიგნალი →</a></div>
+          ${d.watch.feed.length ? `<div class="feed mt">${d.watch.feed.map(obsLine).join("")}</div>` : `<p class="muted" style="margin:8px 0 0">ბოლო 3 დღეში საყურადღებო არაფერი მომხდარა.</p>`}</div>` : ""}
         <div class="card"><h2>აგენტები</h2><div class="agents">
           ${d.agents.map((a) => `<div class="agent"><div><b>${esc(AGENT_KA[a.agent] || a.agent)}</b><small>${esc(a.message || "")}</small></div>
             <div style="text-align:right">${pill(a.status, RUN[a.status] || "mute")}<br><small class="muted">${fmtDate(a.finished_at || a.started_at)}</small></div></div>`).join("")}
@@ -299,9 +301,10 @@ function alertCard(a) {
     ${a.prop ? `<div class="mline" title="${esc(oddsTitle(a.prop))}">ბაზრის ხაზი: <b>${num(a.prop.line)}</b> <span class="muted">(${esc(a.prop.provider)}${a.prop.game_date !== todayET() ? " · " + esc(a.prop.game_date) : ""})</span>
       ${a.recent_avg != null ? `<span class="muted">ბოლო ${a.window_games || 3}-ის საშუალო ${num(a.recent_avg)}</span> ${vsLine(a.recent_avg, a.prop.line)}` : ""}</div>` : a.noLine ? `<div class="mline nol ${a.noLine.kind}" title="${esc(a.noLine.title || "")}">ბაზრის ხაზი: <span class="muted">${a.noLine.kind === "injury" ? "🩹 " : ""}${esc(a.noLine.text)}</span></div>` : ""}
     ${a.conclusion ? `<p>${esc(a.conclusion)}</p>` : ""}
-    <div class="actions">${Object.entries(STATUS).map(([k, [l]]) => `<button class="chip sm ${a.status === k ? "on" : ""}" data-status="${k}" data-alert="${a.id}">${l}</button>`).join("")}</div>
+    <div class="actions">${Object.entries(STATUS).map(([k, [l]]) => `<button class="chip sm ${a.status === k ? "on" : ""}" data-status="${k}" data-alert="${a.id}">${l}</button>`).join("")}
+      <button class="chip sm track ${a.tracked ? "on" : ""}" data-track="${a.id}" data-on="${a.tracked ? 1 : 0}" title="${a.tracked ? "მონიშნულია: შემდეგ თამაშებს ვადევნებ თვალს. დააჭირე მოსახსნელად" : "მონიშნე: ცალკე გვერდზე გამოჩნდება, რა მოხდა შემდეგ თამაშებში"}">👁 ${a.tracked ? "ვაკვირდები" : "დაკვირვება"}</button></div>
     <div class="comments">${(a.comments || []).map((c) => `<div class="cmt"><b>${esc(c.author)}</b> <small class="muted">${fmtDate(c.created_at)}</small><div>${esc(c.body)}</div></div>`).join("")}
-      <form class="cform" data-alert="${a.id}"><input name="body" placeholder="კომენტარი…" maxlength="2000" autocomplete="off"><button class="btn sm">➤</button></form></div></div>`;
+      <form class="cform" data-alert="${a.id}" data-auto="${a.everTracked ? 0 : 1}"><input name="body" placeholder="კომენტარი…" maxlength="2000" autocomplete="off"><button class="btn sm">➤</button></form></div></div>`;
 }
 
 function bindAlertActions(root, rerender) {
@@ -314,8 +317,18 @@ function bindAlertActions(root, rerender) {
     e.preventDefault();
     const body = f.elements.body.value.trim();
     if (!body || !(await requireAuth())) return;
-    try { await window.NBA.addComment(+f.dataset.alert, body); rerender(); }
-    catch (err) { toast("შეცდომა: " + err.message); }
+    try {
+      await window.NBA.addComment(+f.dataset.alert, body);
+      // a comment on a signal that was never marked also marks it for observation
+      if (f.dataset.auto === "1") { await window.NBA.trackSignal(+f.dataset.alert, true, body); toast("👁 სიგნალი მოინიშნა დაკვირვებისთვის"); }
+      rerender();
+    } catch (err) { toast("შეცდომა: " + err.message); }
+  }));
+  root.querySelectorAll("[data-track]").forEach((b) => (b.onclick = async () => {
+    if (!(await requireAuth())) return;
+    const on = b.dataset.on !== "1";
+    try { await window.NBA.trackSignal(+b.dataset.track, on, null); toast(on ? "👁 მოინიშნა. ნახე გვერდზე „დაკვირვება“" : "დაკვირვება მოიხსნა"); rerender(); }
+    catch (e) { toast("შეცდომა: " + e.message); }
   }));
 }
 
@@ -332,6 +345,60 @@ async function alertsView() {
   view.querySelectorAll("[data-s]").forEach((b) => (b.onclick = () => { astate = b.dataset.s; alertsView(); }));
   view.querySelectorAll("[data-w]").forEach((b) => (b.onclick = () => { awin = +b.dataset.w; alertsView(); }));
   bindAlertActions(view, alertsView);
+  view.querySelectorAll("[data-player]").forEach((b) => (b.onclick = () => openPlayer(b.dataset.player)));
+}
+
+/* ---------------- Watch (marked signals) ---------------- */
+const TRACK = { waiting: ["ელოდება შემდეგ თამაშს", "mute"], early: ["ჯერ ადრეა", "info"], confirmed: ["სიგნალი დადასტურდა", "good"],
+  reversed: ["შემობრუნდა ნორმაზე", "warn"], mixed: ["შერეული სურათი", "mute"], finished: ["დაკვირვება დასრულდა", "mute"] };
+const OBS_ICON = { game: "🏀", missed: "🚫", status: "📌", line_move: "📉", line_vs_form: "⚖️", injury: "🩹", new_signal: "📈" };
+const VS_SIGNAL = { cont: ["გრძელდება", "bad"], normal: ["ნორმა", "mute"], opposite: ["პირიქით", "good"] };
+const shortDay = (s) => (s || "").slice(5, 10).replace("-", "/");
+const obsLine = (o) => `<div class="obs ${o.notable ? "nb" : ""}"><span class="ic">${OBS_ICON[o.kind] || "•"}</span><span><small class="muted">${esc(shortDay(o.obs_date))}</small> ${esc(o.text_ka)}</span></div>`;
+function watchCard(t) {
+  const a = t.alert || {}, det = a.details || {}, f = t.follow_up || {}, games = f.games || [];
+  const up = t.rule === "above_avg_streak", st = TRACK[t.auto_status] || [t.auto_status, "mute"];
+  const isMin = t.stat === "minutes";
+  const nb = t.obs.filter((o) => o.notable && o.kind !== "game" && o.kind !== "missed");
+  const lineNow = f.next_line || (a.prop ? { line: a.prop.line, date: a.prop.game_date } : null);
+  return `<div class="card alert watch">
+    <div class="top"><div class="who">${a.headshot ? `<img class="avatar" src="${esc(a.headshot)}" alt="" loading="lazy">` : ""}
+      <div><b class="click" data-player="${esc(t.player_id)}" style="cursor:pointer">${esc(a.name || det.player_name || t.player_id)}</b><small>${esc(a.team || "")} · ${esc(STAT_KA[t.stat] || t.stat)} · მონიშნა ${esc(t.added_by || "")} ${fmtDate(t.created_at)}</small></div></div>
+      <div style="text-align:right">${pill(st[0], st[1])}</div></div>
+    <div class="change"><span class="pill ${up ? "good" : "bad"}">${up ? "▲ მატება" : "▼ კლება"}</span>
+      <span class="muted"><small>საშუალო</small> ${num(t.baseline)}</span><span class="arrow">→</span><b><small class="muted" style="font-size:12px;font-weight:400">სიგნალი (ბოლო ${t.window_games || 3}):</small> ${alertSlots(det).map((sl) => sl.miss ? `<span class="miss">არ ითამაშა</span>` : num(sl.v, 0) + (!isMin && sl.m != null ? ` <small class="minl">${num(sl.m, 0)}min</small>` : "")).join(" · ") || (t.signal_values || []).map((v) => num(v, 0)).join(" · ")}</b></div>
+    ${t.note ? `<div class="note">📝 ${esc(t.note)}</div>` : ""}
+    <h3>რა მოხდა სიგნალის შემდეგ</h3>
+    ${games.length ? `<div class="table-wrap"><table class="follow"><thead><tr><th>თარიღი</th><th>მეტოქე</th><th class="num">${esc(STAT_KA[t.stat] || t.stat)}</th><th class="num">ბაზრის ხაზი</th><th>ხაზთან</th><th>სიგნალთან</th></tr></thead>
+      <tbody>${games.map((g) => `<tr><td>${esc(shortDay(g.date))}</td><td>${g.home ? "" : "@ "}${esc(g.opp)}</td>${g.dnp
+        ? `<td colspan="4"><span class="miss">არ ითამაშა</span>${g.reason ? ` <small class="muted">${esc(g.reason)}</small>` : ""}</td>`
+        : `<td class="num"><b>${num(g.value, 0)}</b>${!isMin && g.minutes != null ? ` <small class="minl">${num(g.minutes, 0)}min</small>` : ""}</td><td class="num">${g.line != null ? num(g.line) : `<span class="muted">–</span>`}</td>
+          <td>${g.result ? pill(g.result === "over" ? "▲ მეტი" : g.result === "under" ? "▼ ნაკლები" : "ზუსტად", g.result === "over" ? "good" : g.result === "under" ? "bad" : "mute") : ""}</td>
+          <td>${g.vs_signal ? pill(VS_SIGNAL[g.vs_signal][0], g.vs_signal === "cont" ? (up ? "good" : "bad") : g.vs_signal === "opposite" ? (up ? "bad" : "good") : "mute") : ""}</td>`}</tr>`).join("")}</tbody></table></div>
+      <div class="facts"><span>📊 ${f.played} თამაშის საშუალო: <b>${num(f.avg)}</b> (სიგნალამდე ${num(t.baseline)})</span>
+        ${!isMin && f.avg_minutes != null ? `<span>⏱ წუთი: ${num(f.avg_minutes)}${f.minutes_baseline ? ` (ჩვეულებრივ ${num(f.minutes_baseline)})` : ""}</span>` : ""}
+        ${f.over + f.under ? `<span>🎯 ხაზზე მეტი ${f.over} / ნაკლები ${f.under}</span>` : ""}</div>`
+      : `<p class="muted" style="margin:6px 0 0">${f.evaluated_at ? "სიგნალის შემდეგ გუნდს ჯერ არ უთამაშია." : "პირველი შედეგები ყოველდღიური 15:00-ის გაშვების შემდეგ გამოჩნდება."}</p>`}
+    ${lineNow || t.line_at_mark != null ? `<div class="mline">ბაზრის ხაზი: ${t.line_at_mark != null ? `<span class="muted">მონიშვნისას</span> <b>${num(t.line_at_mark)}</b>` : ""}${t.line_at_mark != null && lineNow ? ` <span class="arrow">→</span> ` : ""}${lineNow ? `<span class="muted">შემდეგი მატჩი (${esc(shortDay(lineNow.date))})</span> <b>${num(lineNow.line)}</b>` : ""}</div>` : ""}
+    ${nb.length ? `<h3>ტვინის შენიშვნები</h3><div class="feed">${nb.slice(0, 6).map(obsLine).join("")}</div>` : ""}
+    ${t.obs.length ? `<details class="obslog"><summary>სრული ჟურნალი (${t.obs.length})</summary><div class="feed">${t.obs.map(obsLine).join("")}</div></details>` : ""}
+    ${a.conclusion && a.status === "concluded" ? `<p>${esc(a.conclusion)}</p>` : ""}
+    <div class="comments">${(a.comments || []).map((c) => `<div class="cmt"><b>${esc(c.author)}</b> <small class="muted">${fmtDate(c.created_at)}</small><div>${esc(c.body)}</div></div>`).join("")}
+      <form class="cform" data-alert="${t.alert_id}" data-auto="0"><input name="body" placeholder="კომენტარი…" maxlength="2000" autocomplete="off"><button class="btn sm">➤</button></form></div>
+    <div class="actions"><button class="chip sm" data-track="${t.alert_id}" data-on="${t.active ? 1 : 0}">${t.active ? "✕ დაკვირვების შეწყვეტა" : "↩ დაკვირვების განახლება"}</button></div></div>`;
+}
+let warch = false;
+async function watchView() {
+  const d = await api(`/api/watch?archived=${warch ? 1 : 0}`);
+  if (!warch) $("#nav-watch").textContent = d.items.length || "";
+  view.innerHTML = `
+    <div class="head"><div><h1>დაკვირვება</h1><p class="sub">მონიშნული სიგნალები და რა მოხდა მათ შემდეგ. სისტემა ყოველდღე 15:00-ზე ამოწმებს და თვითონ იწერს შენიშვნებს.</p></div>
+      <div class="toolbar"><div class="chips"><button class="chip ${warch ? "" : "on"}" data-arch="0">აქტიური</button><button class="chip ${warch ? "on" : ""}" data-arch="1">არქივი</button></div></div></div>
+    ${!warch && d.feed.length ? `<div class="card"><h2>🧠 ტვინის შენიშვნები <small class="muted" style="font-weight:400">ბოლო 7 დღე</small></h2><div class="feed">${d.feed.map(obsLine).join("")}</div></div>` : ""}
+    ${d.items.length ? `<div class="grid watchgrid mt">${d.items.map(watchCard).join("")}</div>`
+      : `<div class="card empty">${warch ? "არქივი ცარიელია" : "ჯერ არაფერია მონიშნული. გვერდზე „სიგნალები“ დააჭირე ღილაკს „👁 დაკვირვება“ ან დაწერე კომენტარი, და სიგნალი აქ გამოჩნდება."}</div>`}`;
+  view.querySelectorAll("[data-arch]").forEach((b) => (b.onclick = () => { warch = b.dataset.arch === "1"; watchView(); }));
+  bindAlertActions(view, watchView);
   view.querySelectorAll("[data-player]").forEach((b) => (b.onclick = () => openPlayer(b.dataset.player)));
 }
 
@@ -373,7 +440,7 @@ function requireAuth() {
   if (window.NBA.getAuth()) return Promise.resolve(true);
   return new Promise((resolve) => {
     const prev = $("#modal").hidden ? null : $("#modal-body").innerHTML;
-    modal(`<h1>შესვლა</h1><p class="sub">სტატუსის შეცვლას, კომენტარს და ★ სიას საერთო კოდი სჭირდება. ერთხელ შეიყვანე და ეს ბრაუზერი დაიმახსოვრებს.</p>
+    modal(`<h1>შესვლა</h1><p class="sub">სტატუსის შეცვლას, კომენტარს, დაკვირვებას და ★ სიას საერთო კოდი სჭირდება. ერთხელ შეიყვანე და ეს ბრაუზერი დაიმახსოვრებს.</p>
       <form id="authf" class="authf"><label>შენი სახელი<input name="uname" required maxlength="40" placeholder="მაგ. ლევანი"></label>
       <label>კოდი<input name="code" required type="password" autocomplete="off"></label>
       <div class="toolbar"><button class="btn primary">შესვლა</button><span id="autherr" class="muted"></span></div></form>`);
@@ -398,7 +465,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#modal"
 $("#refresh").onclick = async () => { await api("/api/refresh"); pcache = null; route(); };
 renderUser();
 
-const ROUTES = { "": overview, games: gamesView, players: playersView, predictions: predictionsView, lines: linesView, alerts: alertsView, system: systemView };
+const ROUTES = { "": overview, games: gamesView, players: playersView, predictions: predictionsView, lines: linesView, alerts: alertsView, watch: watchView, system: systemView };
 async function route() {
   const [path, qs] = location.hash.replace(/^#\/?/, "").split("?");
   const params = Object.fromEntries(new URLSearchParams(qs || ""));
@@ -409,4 +476,4 @@ async function route() {
 }
 window.addEventListener("hashchange", route);
 route();
-api("/api/overview").then((d) => { $("#nav-alerts").textContent = d.kpi.alerts_new || ""; $("#updated").textContent = d.last_update ? "ბოლო განახლება: " + fmtDate(d.last_update) : ""; }).catch(() => {});
+api("/api/overview").then((d) => { $("#nav-alerts").textContent = d.kpi.alerts_new || ""; $("#nav-watch").textContent = d.watch.active || ""; $("#updated").textContent = d.last_update ? "ბოლო განახლება: " + fmtDate(d.last_update) : ""; }).catch(() => {});
