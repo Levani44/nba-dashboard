@@ -15,7 +15,7 @@ const STATUS = { new: ["ახალი", "info"], investigating: ["კვლე
 const RUN = { ok: "good", warning: "warn", failed: "bad", running: "info" };
 const AGENT_KA = {
   collector: "შემგროვებელი", validator: "ვალიდატორი", signals: "სიგნალები", researcher: "მკვლევარი",
-  reporter: "რეპორტიორი", tracker: "დამკვირვებელი", predictor: "პროგნოზისტი", evaluator: "შემფასებელი", odds: "ბაზრის ხაზები", report_numeric: "რიცხვითი ანგარიში", orchestrator: "ორკესტრატორი",
+  reporter: "რეპორტიორი", tracker: "დამკვირვებელი", predictor: "პროგნოზისტი", evaluator: "შემფასებელი", odds: "ბაზრის ხაზები", report_numeric: "რიცხვითი ანგარიში", strategies: "სტრატეგიები", orchestrator: "ორკესტრატორი",
 };
 const fmtDate = (s) => { if (!s) return "–"; const d = new Date(s); return d.toLocaleString("ka-GE", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); };
 const fmtDay = (s) => new Date(s + "T12:00:00").toLocaleDateString("ka-GE", { weekday: "short", month: "long", day: "numeric" });
@@ -409,6 +409,89 @@ async function watchView() {
   view.querySelectorAll("[data-player]").forEach((b) => (b.onclick = () => openPlayer(b.dataset.player)));
 }
 
+/* ---------------- Strategies (paper bets) ---------------- */
+const STRAT = {
+  reversion: ["საშუალოსკენ დაბრუნება", "სტაბილური მოთამაშე ბოლო 3 თამაშში საშუალოს ცდება → ფსონი საშუალოსკენ. ტვინი ჯერ მიზეზს ეძებს: წუთები, სასტარტო/სკამი, ტრავმა, გამოტოვებული თამაში, თანაგუნდელი, ტრეიდი. მიზეზის შემთხვევაში ფსონი არ იდება."],
+  momentum: ["ფორმის გაგრძელება", "იგივე სერიები, მაგრამ მხოლოდ როცა წუთები ან როლი ნამდვილად შეიცვალა → ფსონი, რომ ახალი დონე გაგრძელდება."],
+  value: ["მოდელის ფასი", "ყველა ხაზი: წუთში საშუალო × მოსალოდნელი წუთები. დღეში 10 ყველაზე დიდი განსხვავება ბაზართან."],
+  control: ["საკონტროლო", "ყველა ქულის „ნაკლები“, მოდელის გარეშე. აჩვენებს, რამდენს აგებს ბრმა ფსონი (ბაზრის საკომისიო)."],
+};
+const SIDE_KA = { over: "მეტი", under: "ნაკლები" };
+const RES = { won: ["მოგება", "good"], lost: ["წაგება", "bad"], push: ["ფრე", "mute"], void: ["არ ითამაშა", "mute"] };
+const pct = (v, d = 1) => (v == null || isNaN(v) ? "–" : (v * 100).toFixed(d) + "%");
+const units = (v) => (v == null ? "–" : (v > 0 ? "+" : "") + Number(v).toFixed(2));
+const sclass = (v) => (v > 0 ? "up" : v < 0 ? "down" : "muted");
+function stratStats(rows) {
+  const st = (rs) => {
+    const s = rs.filter((r) => ["won", "lost", "push"].includes(r.result));
+    const won = s.filter((r) => r.result === "won").length, lost = s.filter((r) => r.result === "lost").length;
+    const pl = s.reduce((a, r) => a + Number(r.profit || 0), 0);
+    const be = s.length ? s.reduce((a, r) => a + Number(r.implied_prob || 0), 0) / s.length : null;
+    const ed = rs.filter((r) => r.edge != null);
+    return { n: s.length, won, lost, push: s.length - won - lost, open: rs.filter((r) => !r.result).length,
+      voids: rs.filter((r) => r.result === "void").length, pl, roi: s.length ? pl / s.length : null,
+      hit: won + lost ? won / (won + lost) : null, be, edge: ed.length ? ed.reduce((a, r) => a + Number(r.edge), 0) / ed.length : null };
+  };
+  return { placed: st(rows.filter((r) => r.placed)), filtered: st(rows.filter((r) => !r.placed)) };
+}
+function plChart(by, names) {
+  const days = [...new Set(Object.values(by).flat().filter((r) => r.placed && r.result && r.result !== "void").map((r) => r.game_date))].sort();
+  if (days.length < 2) return "";
+  const colors = { reversion: "var(--accent)", momentum: "#f59e0b", value: "#8b5cf6", control: "var(--muted)" };
+  const series = names.map((k) => { let c = 0; return [k, days.map((d) => (c += (by[k] || []).filter((r) => r.placed && r.game_date === d).reduce((a, r) => a + Number(r.profit || 0), 0)))]; });
+  const all = series.flatMap(([, v]) => v).concat([0]), lo = Math.min(...all), hi = Math.max(...all), W = 640, H = 180, P = 28;
+  const x = (i) => P + (i * (W - 2 * P)) / (days.length - 1), y = (v) => H - P - ((v - lo) / (hi - lo || 1)) * (H - 2 * P);
+  return `<div class="card mt"><h2>ჯამური მოგება/წაგება (ერთეული)</h2><svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">
+    <line x1="${P}" x2="${W - P}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line, #8884)" stroke-dasharray="4 4"/>
+    <text x="2" y="${y(0) + 4}" font-size="11" fill="currentColor" opacity=".6">0</text>
+    <text x="2" y="${y(hi) + 4}" font-size="11" fill="currentColor" opacity=".6">${units(hi)}</text>
+    <text x="2" y="${y(lo) + 4}" font-size="11" fill="currentColor" opacity=".6">${units(lo)}</text>
+    ${series.map(([k, v]) => `<polyline fill="none" stroke="${colors[k]}" stroke-width="2.2" points="${v.map((p, i) => `${x(i)},${y(p)}`).join(" ")}"/>`).join("")}
+    <text x="${P}" y="${H - 6}" font-size="11" fill="currentColor" opacity=".6">${esc(days[0].slice(5))}</text><text x="${W - P}" y="${H - 6}" text-anchor="end" font-size="11" fill="currentColor" opacity=".6">${esc(days.at(-1).slice(5))}</text>
+  </svg><div class="chips">${names.map((k) => `<span class="muted" style="font-size:12px"><span style="display:inline-block;width:10px;height:3px;background:${colors[k]};vertical-align:middle"></span> ${esc(STRAT[k][0])}</span>`).join(" · ")}</div></div>`;
+}
+const betCell = (r) => `${esc(LINE_STAT_KA[r.stat] || r.stat)} <b>${SIDE_KA[r.side]} ${num(r.line)}</b> <small class="muted">${esc(r.odds || "")}</small>`;
+const actCell = (r) => (r.actual == null ? (r.result === "void" ? `<span class="miss">OUT</span>` : `<span class="muted">–</span>`) : `<b>${num(r.actual, 0)}</b> <small class="minl">${num(r.actual_minutes, 0)}min</small>`);
+const whyCell = (r) => (r.skip_reasons || []).map((x) => esc(x.text)).join("; ") || esc(r.details?.why || "");
+let smode = "live", sfilter = "all";
+async function strategiesView() {
+  const d = await api(`/api/strategies?mode=${smode}`);
+  const names = Object.keys(STRAT);
+  const by = {}; names.forEach((k) => (by[k] = d.bets.filter((r) => r.strategy === k)));
+  const card = (k) => {
+    const s = stratStats(by[k]), p = s.placed, f = s.filtered;
+    const prog = Math.min(100, Math.round((p.n / 100) * 100));
+    return `<div class="card"><div class="toolbar" style="justify-content:space-between"><h2 style="margin:0">${esc(STRAT[k][0])}</h2>${k === "control" ? pill("ეტალონი", "mute") : p.n >= 100 ? pill("საკმარისი მონაცემი", "good") : pill(`${p.n}/100 ფსონი`, "warn")}</div>
+      <p class="muted" style="margin:6px 0 10px;font-size:13px">${esc(STRAT[k][1])}</p>
+      <div class="grid kpis" style="margin:0">
+        <div class="kpi"><div class="label">მოგება–წაგება</div><div class="value">${p.won}–${p.lost}${p.push ? `<small class="muted">–${p.push}</small>` : ""}</div><div class="hint">${p.open} ღია${p.voids ? ` · ${p.voids} არ ითამაშა` : ""}</div></div>
+        <div class="kpi"><div class="label">მოგების %</div><div class="value">${pct(p.hit)}</div><div class="hint">საჭიროა ≥ ${pct(p.be)}</div></div>
+        <div class="kpi"><div class="label">მოგება (ერთ.)</div><div class="value ${sclass(p.pl)}">${units(p.n ? p.pl : null)}</div><div class="hint">1 ერთეული თითო ფსონზე</div></div>
+        <div class="kpi"><div class="label">ROI</div><div class="value ${sclass(p.roi)}">${pct(p.roi)}</div><div class="hint">${p.edge != null ? `საშ. უპირატესობა ${pct(p.edge)}` : "მოდელის გარეშე"}</div></div>
+      </div>
+      <div style="height:5px;border-radius:3px;background:var(--line, #8883);margin-top:10px"><div style="height:5px;border-radius:3px;width:${prog}%;background:var(--accent)"></div></div>
+      ${k === "reversion" && (f.n || f.open) ? `<p style="margin:10px 0 0;font-size:13px">🧠 ტვინმა გაფილტრა <b>${f.n + f.open}</b> შემთხვევა. ${f.n ? `ფსონი რომ დაგვედო: ${f.won}–${f.lost}, ${pct(f.hit)}, <b class="${sclass(f.pl)}">${units(f.pl)}</b> ერთ. ${f.pl < 0 ? "→ ფილტრი გვიცავს ✓" : f.pl > 0 ? "→ ფილტრი ზედმეტად მკაცრია" : ""}` : "შედეგი ჯერ არ არის."}</p>` : ""}
+    </div>`;
+  };
+  const open = d.bets.filter((r) => r.placed && !r.result && r.strategy !== "control").sort((a, b) => names.indexOf(a.strategy) - names.indexOf(b.strategy) || (b.edge || 0) - (a.edge || 0));
+  const flt = (r) => sfilter === "all" ? r.strategy !== "control" : sfilter === "filtered" ? !r.placed : r.strategy === sfilter && r.placed;
+  const settled = d.bets.filter((r) => r.result && flt(r)).slice(-80).reverse();
+  view.innerHTML = `
+    <div class="head"><div><h1>სტრატეგიები</h1><p class="sub">ქაღალდის ფსონები: რეალური ფული არ იდება. 1 ერთეული თითო ფსონზე, DraftKings-ის ფასით. ყოველდღე 15:00-ზე იდება და მატჩის შემდეგ თვითონ იხურება.</p></div>
+      <div class="toolbar"><div class="chips"><button class="chip ${smode === "live" ? "on" : ""}" data-m="live">რეალური დროით</button><button class="chip ${smode === "backtest" ? "on" : ""}" data-m="backtest">ისტორიული ტესტი</button></div></div></div>
+    <div class="card notice">ℹ️ ${smode === "backtest" ? "ისტორიული ტესტი: იგივე წესები გაშვებულია წარსულ დღეებზე (6 ნოემბრიდან, როცა ხაზების შენახვა დავიწყეთ), მხოლოდ იმ დღემდე ცნობილი მონაცემებით. " : ""}შედეგს ენდე მხოლოდ 100+ დახურული ფსონის შემდეგ (დაახლ. 2–3 კვირა). მანამდე ეს უბრალოდ ხმაურია. „საჭიროა ≥“ = მოგების %, რომელიც ბაზრის ფასით ნულზე გასასვლელად გჭირდება.</div>
+    <div class="grid cols-2 mt">${names.map(card).join("")}</div>
+    ${plChart(by, names)}
+    <div class="card mt"><h2>დღევანდელი ფსონები <small class="muted" style="font-weight:400">${open.length}</small></h2>${open.length ? `<div class="table-wrap"><table><thead><tr><th>მოთამაშე</th><th>სტრატეგია</th><th>ფსონი</th><th class="num">მოლოდინი</th><th class="num">მოდელი</th><th class="num">ბაზარი</th><th class="num">უპირატ.</th><th>რატომ</th></tr></thead><tbody>
+      ${open.map((r) => `<tr class="click" data-player="${esc(r.player_id)}"><td><b>${esc(r.player_name)}</b> <small class="muted">${esc(r.game_date.slice(5))}</small></td><td>${esc(STRAT[r.strategy][0])}</td><td>${betCell(r)}</td><td class="num">${num(r.expected)}</td><td class="num">${pct(r.model_prob, 0)}</td><td class="num">${pct(r.fair_prob, 0)}</td><td class="num up">${pct(r.edge, 1)}</td><td class="muted" style="font-size:12.5px">${r.strategy === "reversion" ? `საშუალო ${num(r.details?.baseline)} → ბოლო: ${(r.details?.values || []).map((v) => num(v, 0)).join(" · ")}` : whyCell(r)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">${smode === "live" ? "დღეს ღია ფსონი არ არის. ახლები 15:00-ზე ჩნდება." : "ღია ფსონი არ არის"}</div>`}</div>
+    <div class="card mt"><div class="toolbar" style="justify-content:space-between"><h2 style="margin:0">დახურული ფსონები</h2><div class="chips">${[["all", "ყველა"], ...names.filter((k) => k !== "control").map((k) => [k, STRAT[k][0]]), ["filtered", "🧠 გაფილტრული"]].map(([k, l]) => `<button class="chip sm ${k === sfilter ? "on" : ""}" data-f="${k}">${esc(l)}</button>`).join("")}</div></div>
+      ${settled.length ? `<div class="table-wrap mt"><table><thead><tr><th>თარიღი</th><th>მოთამაშე</th><th>სტრატეგია</th><th>ფსონი</th><th class="num">შედეგი</th><th></th><th class="num">ერთ.</th><th>${sfilter === "filtered" ? "რატომ გაიფილტრა" : "დეტალი"}</th></tr></thead><tbody>
+      ${settled.map((r) => `<tr class="click" data-player="${esc(r.player_id)}"><td class="muted">${esc(r.game_date.slice(5))}</td><td><b>${esc(r.player_name)}</b></td><td>${esc(STRAT[r.strategy][0])}</td><td>${betCell(r)}</td><td class="num">${actCell(r)}</td><td>${pill(...RES[r.result])}</td><td class="num ${sclass(r.profit)}">${r.placed ? units(r.profit) : `<span class="muted">(${units(r.profit)})</span>`}</td><td class="muted" style="font-size:12.5px">${whyCell(r) || (r.details?.baseline != null ? `საშუალო ${num(r.details.baseline)}` : "")}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">ჯერ არაფერია დახურული</div>`}</div>`;
+  view.querySelectorAll("[data-m]").forEach((b) => (b.onclick = () => { smode = b.dataset.m; strategiesView(); }));
+  view.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { sfilter = b.dataset.f; strategiesView(); }));
+  view.querySelectorAll("tr[data-player]").forEach((tr) => (tr.onclick = () => openPlayer(tr.dataset.player)));
+}
+
 /* ---------------- System ---------------- */
 async function systemView() {
   const d = await api("/api/system");
@@ -472,7 +555,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#modal"
 $("#refresh").onclick = async () => { await api("/api/refresh"); pcache = null; route(); };
 renderUser();
 
-const ROUTES = { "": overview, games: gamesView, players: playersView, predictions: predictionsView, lines: linesView, alerts: alertsView, watch: watchView, system: systemView };
+const ROUTES = { "": overview, games: gamesView, players: playersView, predictions: predictionsView, lines: linesView, alerts: alertsView, watch: watchView, strategies: strategiesView, system: systemView };
 async function route() {
   const [path, qs] = location.hash.replace(/^#\/?/, "").split("?");
   const params = Object.fromEntries(new URLSearchParams(qs || ""));

@@ -280,6 +280,16 @@ async function apiWatch(q) {
   return { archived, items, feed, players: p };
 }
 
+async function apiStrategies(q) {
+  const mode = q.mode === "backtest" ? "backtest" : "live";
+  const [bets, t] = await Promise.all([
+    cached("bets_" + mode, () => sb("paper_bets", { select: "*", mode: `eq.${mode}`, order: "game_date.asc,id.asc" }), 60000),
+    teams(),
+  ]);
+  const today = etDate(new Date().toISOString());
+  return { mode, today, bets, teams: t };
+}
+
 async function apiSystem() {
   const [runs, issues, reports, sig, res] = await Promise.all([
     sb("agent_runs", { select: "*", order: "id.desc", limit: 40 }, { all: false }),
@@ -390,6 +400,7 @@ async function nbaApi(path) {
   if (p === "/api/watch") return apiWatch(q);
   if (p === "/api/predictions") return apiPredictions(q);
   if (p === "/api/lines") return apiLines(q);
+  if (p === "/api/strategies") return apiStrategies(q);
   if (p === "/api/refresh") { clearCache(); return { ok: true }; }
   throw new Error("unknown " + p);
 }
