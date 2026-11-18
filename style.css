@@ -205,3 +205,5 @@ details:not([open]) > summary::after { content: "▸"; }
 .obs .ic { flex: none; width: 18px; text-align: center; }
 .chip.track.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 @media (max-width: 560px) { .watchgrid { grid-template-columns: 1fr; } }
+.view, .view .card, .grid > * { min-width: 0; }
+.view .chips { flex-wrap: wrap; }

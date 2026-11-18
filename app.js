@@ -463,7 +463,7 @@ async function strategiesView() {
     const prog = Math.min(100, Math.round((p.n / 100) * 100));
     return `<div class="card"><div class="toolbar" style="justify-content:space-between"><h2 style="margin:0">${esc(STRAT[k][0])}</h2>${k === "control" ? pill("ეტალონი", "mute") : p.n >= 100 ? pill("საკმარისი მონაცემი", "good") : pill(`${p.n}/100 ფსონი`, "warn")}</div>
       <p class="muted" style="margin:6px 0 10px;font-size:13px">${esc(STRAT[k][1])}</p>
-      <div class="grid kpis" style="margin:0">
+      <div class="grid kpis" style="margin:0;grid-template-columns:repeat(auto-fill,minmax(120px,1fr))">
         <div class="kpi"><div class="label">მოგება–წაგება</div><div class="value">${p.won}–${p.lost}${p.push ? `<small class="muted">–${p.push}</small>` : ""}</div><div class="hint">${p.open} ღია${p.voids ? ` · ${p.voids} არ ითამაშა` : ""}</div></div>
         <div class="kpi"><div class="label">მოგების %</div><div class="value">${pct(p.hit)}</div><div class="hint">საჭიროა ≥ ${pct(p.be)}</div></div>
         <div class="kpi"><div class="label">მოგება (ერთ.)</div><div class="value ${sclass(p.pl)}">${units(p.n ? p.pl : null)}</div><div class="hint">1 ერთეული თითო ფსონზე</div></div>
