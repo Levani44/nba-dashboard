@@ -444,8 +444,8 @@ function plChart(by, names) {
   return `<div class="card mt"><h2>ჯამური მოგება/წაგება (ერთეული)</h2><svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">
     <line x1="${P}" x2="${W - P}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line, #8884)" stroke-dasharray="4 4"/>
     <text x="2" y="${y(0) + 4}" font-size="11" fill="currentColor" opacity=".6">0</text>
-    <text x="2" y="${y(hi) + 4}" font-size="11" fill="currentColor" opacity=".6">${units(hi)}</text>
-    <text x="2" y="${y(lo) + 4}" font-size="11" fill="currentColor" opacity=".6">${units(lo)}</text>
+    ${Math.abs(y(hi) - y(0)) > 14 ? `<text x="2" y="${y(hi) + 4}" font-size="11" fill="currentColor" opacity=".6">${units(hi)}</text>` : ""}
+    ${Math.abs(y(lo) - y(0)) > 14 ? `<text x="2" y="${y(lo) + 4}" font-size="11" fill="currentColor" opacity=".6">${units(lo)}</text>` : ""}
     ${series.map(([k, v]) => `<polyline fill="none" stroke="${colors[k]}" stroke-width="2.2" points="${v.map((p, i) => `${x(i)},${y(p)}`).join(" ")}"/>`).join("")}
     <text x="${P}" y="${H - 6}" font-size="11" fill="currentColor" opacity=".6">${esc(days[0].slice(5))}</text><text x="${W - P}" y="${H - 6}" text-anchor="end" font-size="11" fill="currentColor" opacity=".6">${esc(days.at(-1).slice(5))}</text>
   </svg><div class="chips">${names.map((k) => `<span class="muted" style="font-size:12px"><span style="display:inline-block;width:10px;height:3px;background:${colors[k]};vertical-align:middle"></span> ${esc(STRAT[k][0])}</span>`).join(" · ")}</div></div>`;
